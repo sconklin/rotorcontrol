@@ -15,6 +15,7 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 #include <Wire.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include "encoder.h"
 
 // Board pin connections
 #define LCDRS 7
@@ -54,6 +55,10 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 #define LENSHIFT 4
 // 6 and 7 unused
 
+// define encoder indices
+#define L_ENC 0
+#define R_ENC 1
+
 #define EXPIOSET (~(ACOUT|CCWOUT|CWOUT))
 
 // For LCD
@@ -62,84 +67,6 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 
 // globals for testing
 byte lastinput, thisinput;
-
-// States for Rotary encoders
-#define RS_REST 0
-#define RS_WF3 1
-#define RS_CW1 2
-#define RS_CW2 3
-#define RS_CW3 4
-#define RS_CCW1 5
-#define RS_CCW2 6
-#define RS_CCW3 7
-#define RS_MAX_STATES 8
-
-#define RS_NUM_INPUT_VALUES 4
-#define RS_INC_CCW 0x80
-#define RS_INC_CW 0x40
-#define RS_MASK 0x0F
-
-  /*
-   * State table (For each encoder):
-   *
-   * '*' shouldn't happen, as only encoder value changes are processed
-   *
-   * State Name | New encoder Val | Next State
-   * -----------|-----------------|-----------
-   * REST       |       0         | WF3 (wait for 3)
-   *            |       1         | CW1
-   *            |       2         | CCW1
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * WF3        |       0         | WF3
-   *            |       1         | WF3
-   *            |       2         | WF3
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * CW1        |       0         | CW2
-   *            |       1         | CW1 *
-   *            |       2         | WF3
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * CW2        |       0         | CW2 *
-   *            |       1         | WF3
-   *            |       2         | CW3
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * CW3        |       0         | WF3
-   *            |       1         | WF3
-   *            |       2         | CW3 *
-   *            |       3         | REST (CW++)
-   * -----------|-----------------|-----------
-   * CCW1       |       0         | CCW2
-   *            |       1         | WF3
-   *            |       2         | CCW1 *
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * CCW2       |       0         | CCW2 *
-   *            |       1         | CCW3
-   *            |       2         | WF3
-   *            |       3         | REST
-   * -----------|-----------------|-----------
-   * CCW3       |       0         | WF3
-   *            |       1         | CCW3 *
-   *            |       2         | WF3
-   *            |       3         | REST (CCW++)
-   * -----------|-----------------|-----------
-   */
-
-// Globals for rotary encoder state machine
-static byte lenc_state, renc_state;
-const static byte next-state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
-    RS_WF3,  RS_CW1,  RS_CCW1, RS_REST,                // RS_REST
-    RS_WF3,  RS_WF3,  RS_WF3,  RS_REST,                // RS_WF3
-    RS_CW2,  RS_CW1,  RS_WF3,  RS_REST,                // RS_CW1
-    RS_CW2,  RS_WF3,  RS_CW3,  RS_REST,                // RS_CW2
-    RS_WF3,  RS_WF3,  RS_CW3,  RS_REST | RS_INC_CW,    // RS_CW3
-    RS_CCW2, RS_WF3,  RS_CCW1, RS_REST,                // RS_CCW1
-    RS_CCW2, RS_CCW3, RS_WF3,  RS_REST,                // RS_CCW2
-    RS_WF3,  RS_CCW3, RS_WF3,  RS_REST | RS_INC_CCW    // RS_CCW3
-};
 
 void expansion_dir(int dir) {
   //  Send config register address
@@ -191,40 +118,6 @@ char *display_error(char *errstr) {
   lcd.print(errstr);
 }
 
-static unsigned int missed_steps;
-
-int init_encoders(void) {
-    lenc_state = renc_state = RS_REST;
-}
-
-int do_enc_state(byte newval, byte right) {
-    byte oldstate, newstate;
-    int count = 0;
-  
-    if right
-	oldstate = renc_state;
-    else
-	oldstate = lenc_state;
-
-    newstate = next-state[state][newval];
-    // Check the high bits to see whether we completed a click
-    if (newstate & RS_INC_CCW) {
-	count--;
-    } else if (newstate & RS_INC_CW) {
-	count++;
-    }
-
-    // get the clean state
-    newstate &= RS_MASK;
-
-    if right
-	renc_state = newstate;
-    else
-	lenc_state = newstate;
-
-    return count;
-}
-
 // Init the display
 LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
 
@@ -253,7 +146,7 @@ void loop() {
   // Check for serial data
   numser = Serial.available();
   if (numser) {
-    // TODO check for a high number here, dpn't want overflow
+    // TODO check for a high number here, don't want overflow
     // inbyte = Serial.read()
   }
 
@@ -276,7 +169,7 @@ void loop() {
       byte encval = (changes & (RENA | RENB)) >> RENSHIFT;
       Serial.print("right encoder ");
       Serial.print(encval, BIN);
-      encoder_moved = do_enc_state(encval, 1);
+      encoder_moved = do_enc_state(encval, R_ENC);
       Serial.println("");
       Serial.println("Right: ");
       Serial.print(encoder_moved, DEC);
@@ -287,7 +180,7 @@ void loop() {
       byte encval = (changes & (LENA | LENB)) >> LENSHIFT;
       Serial.print("left encoder");
       Serial.print(encval, BIN);
-      encoder_moved = do_enc_state(encval, 0);
+      encoder_moved = do_enc_state(encval, L_ENC);
       Serial.println("");
       Serial.println("Left: ");
       Serial.print(encoder_moved, DEC);
