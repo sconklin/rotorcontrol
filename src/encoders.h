@@ -34,6 +34,6 @@
 
 int init_encoders(void);
 
-int do_enc_state(byte,byte);
+int do_enc_state(unsigned char, unsigned char);
 
 #endif /* ENCODERS_H_ */

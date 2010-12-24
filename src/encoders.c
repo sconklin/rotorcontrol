@@ -70,9 +70,9 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 
 // Globals for rotary encoder state machine
 
-static byte enc_state[NUM_ENCODERS];
+static unsigned char enc_state[NUM_ENCODERS];
 
-const static byte next-state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
+const static unsigned char next_state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
     RS_WF3,  RS_CW1,  RS_CCW1, RS_REST,                // RS_REST
     RS_WF3,  RS_WF3,  RS_WF3,  RS_REST,                // RS_WF3
     RS_CW2,  RS_CW1,  RS_WF3,  RS_REST,                // RS_CW1
@@ -84,13 +84,13 @@ const static byte next-state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
 };
 
 int init_encoders(void) {
-    byte i;
+    unsigned char i;
     for (i=0; i<NUM_ENCODERS; i++)
 	enc_state[i] = RS_REST;
 }
 
-int do_enc_state(byte newval, byte encoder) {
-    byte oldstate, newstate;
+int do_enc_state(unsigned char newval, unsigned char encoder) {
+    unsigned char oldstate, newstate;
     int count = 0;
 
     if (encoder >= NUM_ENCODERS)
@@ -99,7 +99,7 @@ int do_enc_state(byte newval, byte encoder) {
   
     oldstate = enc_state[encoder];
 
-    newstate = next-state[oldstate][newval];
+    newstate = next_state[oldstate][newval];
     // Check the high bits to see whether we completed a click
     if (newstate & RS_INC_CCW) {
 	count--;
