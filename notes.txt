@@ -1,0 +1,260 @@
+Rotor I have: Ham IV
+Controller I have: Ham M
+
+Looking at the Ham-M and Ham-IV controller schematics, the difference is that a N.O.
+momentary button has been added to the later controllers. This button energizes the
+rest of the motor control circuits and energizes the braker release solenoid. On
+older controllers, the brake is engaged as soon as you release the movement
+buttons, which can cause the brake to engage while the rotor is still coasting.
+
+Rotor EZ is an addon for these controllers to add serial control. http://www.idiompress.com/rotor-ez.html
+
+* 5 second delay after movement to engage brake
+* support for 90 degree offset antenna
+* manual override
+* "algorithm to deal with position pot "dead spots"
+* programmable end points before end stops
+* LED status indication of brake and motor
+* Hy-Gain DCU-1 protocol support
+
+RotorEZ options controllable by hamlib:
+Endpoint
+JAM
+Overshoot
+Unstick
+
+
+DCU-1 protocol:
+; - stops all rotation
+AIn; - reads heading, returns three digits leading zeroes "xxx;"
+STn; - stops all rotation
+APnxxx(.y); - Sets rotation degrees to xxx degrees and optionslly y tenths for next AMn; command
+AMn; send rotor to last APn setting
+
+===================================================================
+think about a feature set:
+  manual control from front panel
+  serial port control
+  soft limits?
+  status display
+  USB/Serial isolation?
+===================================================================
+Front panel controls/indicators:
+
+LCD panel - target heading, current heading
+LEDs - Motor indicator, Brake indicator, power indicator, serial indicator
+Position knob
+"go" button
+"menu" button
+
+Circuit:
+  Arduino (mega?)
+  analog input from position circuit
+  Three relay outputs (Brake/power, CCW, CW)
+  Serial port
+  LCD interface
+  4 LED outputs (possibly color)
+  Two rotary encoder inputs with push buttons
+
+I2C expansion as needed
+http://www.neufeld.newton.ks.us/electronics/?p=241
+
+LCD Pins (6 outputs required):
+D4
+D5
+D6
+D7
+ENABLE
+RS
+R/W - to GND
+Contrast - to bias pot
+
+Arduino pins:
+
+Digital:
+ 0: RX
+ 1: TX
+ 2:
+ 3: (pwm)
+ 4:
+ 5: (pwm)
+ 6: (pwm)
+ 7: LCD_RS
+ 8: LCD_EN
+ 9: (pwm) LCD_D4
+10: (pwm) LCD_D5
+11: (pwm) LCD_D6
+12: LCD_D7
+13:
+
+Analog:
+ 0: Rotator position feedback
+ 1: 
+ 2:
+ 3:
+ 4: I2C SDA
+ 5: I2C SCL
+
+I2C Expansion:
+ Port 0 (out):
+ 0: Brake Solenoid and AC
+ 1: Motor CCW
+ 2: Motor CW
+ 3:
+ 4:
+ 5:
+ 6:
+ 7:
+ Port 1 (input):
+ 8: Right encoder button
+ 9: Left encoder button
+10: Right encoder A phase
+11: Right encoder B phase
+12: Left encoder A
+13: Left encoder B
+14:
+15:
+
+
+LCD layout - 2x20
+
+XXXXXXXXXXXXXXXXXXXX
+ Target: nnn  LOCK
+Current: nnn  L B R
+XXXXXXXXXXXXXXXXXXXX
+
+
+Pseudocode
+
+__timer variables are decremented every millisecond (more or less) until they reach zero, then they stay zero. The decrementing is done in an ISR.
+
+Setup:
+
+Loop:
+
+config params in EEprom:
+coast time in mS
+analog read delay in mS
+number of analog samples to average
+int ccwlimit
+int cwlimit
+
+button states for two front panel buttons
+int brake_timer
+int sample_time
+int num_samples
+int move_pending .. zero or the AP number to move to
+int current_position
+int front_panel // position of front panel control
+int destination // where we are headed on this move
+int AP1 // where the AM1 command will send us
+int AP2
+etc
+
+// States: MOVING, COASTING, BRAKED
+
+  // read the current position
+  if (sample_time == 0) {
+    read the current values and save it to the sample circular buffers
+    average the samples
+    save current_position
+    save front_panel
+    set sample_time = configuration value
+  }
+
+if Serial input is present, parse it:
+   AIn; - reads heading, returns three digits leading zeroes "xxx;"
+   (for any state)
+   read the current heading and return it
+
+   STn; - stops all rotation
+   switch(state) {
+   case MOVING:
+   	turn off motor
+	set state to COASTING
+	set coasting timer
+	move_pending = FALSE
+	continue
+   case COASTING:
+   case BRAKED:
+   	do nothing
+	continue
+   default:
+	ERROR
+}
+
+   APnxxx(.y); - Sets rotation degrees to xxx degrees and optionslly y tenths for next AMn; command
+   (for any state)
+   save to the appropriate APn variable
+   
+   AMn; send rotor to last APn setting
+   switch (state):
+   case MOVING:
+       if moving in the right direction
+           set destination = APn
+       if moving in the wrong direction
+           turn off motor
+           set state to COASTING
+           set coasting timer
+	   move_pending = AP number
+           continue
+   case COASTING:
+       // keep coasting
+       move_pending = AP number
+       continue
+   case BRAKED:
+       set destination = APn
+       set state to MOVING
+       turn on correct direction
+       continue
+
+   // now for normal operation cases - no input received.
+   case MOVING:
+   	have we hit a limit for the direction we are moving?
+        if yes, deal with it
+
+      are we there yet? (maybe have a coasting algorithm)
+      if no, continue. (does south need special case)
+      if yes, then:
+        turn off motor
+        set state to COASTING
+        set coasting timer
+        break;
+
+   case COASTING:
+    	if (coasting_timer == 0) {
+	    // done
+            if (move_pending) {
+	       set destination = APn
+               set state to MOVING
+               turn on correct direction
+            } else {
+              set state = BRAKED
+              turn on BRAKE (turn off power)
+            }
+        }
+	break;
+
+   case BRAKED:
+        if (move_pending) {
+	   set destination = APn
+	   set state to MOVING
+	   turn off brake (turn on power)
+	   turn on correct direction
+	}
+	break;
+
+    
+
+  // update the display
+  write current position
+  write target position
+  write front panel position
+  write motor and brake state
+
+
+  // read the front panel buttons
+  enter and menu
+  only recognize menu if state is BRAKED
+  enter sends rotor to front panel position
+  menu enters configuration
