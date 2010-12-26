@@ -17,7 +17,7 @@
  * Each item may call a function or start another menu
  */
 
-
+/*
 struct menu {
     void *left_button_push();
     void *right_button_push();
@@ -26,4 +26,4 @@ struct menu {
     void *right_ccw();
     void *right_cw();
 };
-
+*/

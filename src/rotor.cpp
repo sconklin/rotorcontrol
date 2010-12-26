@@ -10,12 +10,13 @@
 
 http://www.neufeld.newton.ks.us/electronics/?p=241
 */
-
+#include <WConstants.h>
 #include <LiquidCrystal.h>
 #include <Wire.h>
+#include <Serial.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <encoder.h>
+//#include <encoder.h>
 
 // Board pin connections
 #define LCDRS 7
@@ -114,8 +115,9 @@ unsigned int expansion_read() {
 }
 
 char *display_error(char *errstr) {
-  lcd.setCursor(0, 1);
-  lcd.print(errstr);
+  // TODO
+  //lcd.setCursor(0, 1);
+  //lcd.print(errstr);
 }
 
 // Init the display
