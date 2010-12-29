@@ -12,4 +12,6 @@ MCU          = atmega328p
 F_CPU        = 16000000
 ARDUINO_PORT = /dev/ttyUSB0
 
+AVRDUDE_CONF = /etc/avrdude.conf
+
 include /usr/local/share/Arduino.mk
