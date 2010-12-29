@@ -10,13 +10,13 @@
 
 http://www.neufeld.newton.ks.us/electronics/?p=241
 */
-#include <WConstants.h>
-#include <LiquidCrystal.h>
-#include <Wire.h>
-#include <Serial.h>
+#include <wiring.h> // with this defined, Wire not right, without defined, digitalRead not defined
+#include "Wire.h"
+#include "LiquidCrystal.h"
+#include <HardwareSerial.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
-//#include <encoder.h>
+#include <encoders.h>
 
 // Board pin connections
 #define LCDRS 7
@@ -67,7 +67,7 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 #define LCDHEIGHT 2
 
 // globals for testing
-byte lastinput, thisinput;
+unsigned char lastinput, thisinput;
 
 void expansion_dir(int dir) {
   //  Send config register address
@@ -94,7 +94,7 @@ void gpio_write(int address, int data) {
 }
 
 unsigned int expansion_read() {
-  byte data = 0;
+  unsigned char data = 0;
 
   //  Send input register address
   Wire.beginTransmission(EXPADDR);
@@ -114,26 +114,31 @@ unsigned int expansion_read() {
   return data;
 }
 
-char *display_error(char *errstr) {
+/*
+void display_error(char *errstr) {
   // TODO
   //lcd.setCursor(0, 1);
   //lcd.print(errstr);
+  return;
 }
+*/
 
-// Init the display
-LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
+//LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
 
 void setup() {
   Serial.begin(9600);
 
   Wire.begin();
+
   expansion_dir(EXPIOSET);
 
   init_encoders();
 
-  lcd.begin(LCDWIDTH, LCDHEIGHT);
+  //lcd = LiquidCrystal.LiquidCrystal(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
+
+  //lcd.begin(LCDWIDTH, LCDHEIGHT);
   //Serial.println("conklinhouse.com");
-  lcd.print("conklinhouse.com");
+  //lcd.print("conklinhouse.com");
   
   // init the input variables
   // TODO check for unexpected state here
@@ -141,7 +146,7 @@ void setup() {
 }
 
 void loop() {
-  byte value;
+  unsigned char value;
   int numser;
   int encoder_moved;
   
@@ -155,7 +160,7 @@ void loop() {
   // Check to see if we got any input events
   if (digitalRead(2) == 0) {
     // Input changed since our last read
-    byte changes;
+    unsigned char changes;
     thisinput = expansion_read();
     changes = thisinput ^ lastinput;
     if ((changes & RBIN) && (thisinput & RBIN)) {
@@ -168,7 +173,7 @@ void loop() {
     }
     if (changes & (RENA | RENB)) {
       // right encoder changed
-      byte encval = (changes & (RENA | RENB)) >> RENSHIFT;
+      unsigned char encval = (changes & (RENA | RENB)) >> RENSHIFT;
       Serial.print("right encoder ");
       Serial.print(encval, BIN);
       encoder_moved = do_enc_state(encval, R_ENC);
@@ -179,7 +184,7 @@ void loop() {
     }
     if (changes & (LENA | LENB)) {
       // left encoder changed
-      byte encval = (changes & (LENA | LENB)) >> LENSHIFT;
+      unsigned char encval = (changes & (LENA | LENB)) >> LENSHIFT;
       Serial.print("left encoder");
       Serial.print(encval, BIN);
       encoder_moved = do_enc_state(encval, L_ENC);
@@ -193,7 +198,7 @@ void loop() {
   
   // set the cursor to column 0, line 1
   // (note: line 1 is the second row, since counting begins with 0):
-  lcd.setCursor(0, 1);
+  //lcd.setCursor(0, 1);
   
   //delay(500);
   // print the number of seconds since reset:
