@@ -12,6 +12,7 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 */
 #include <Wire.h>
 #include <LiquidCrystal.h>
+#include "encoders.h"
 
 // Board pin connections
 #define LCDRS 7
@@ -51,106 +52,9 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 #define LENSHIFT 4
 // 6 and 7 unused
 
-#define NUM_ENCODERS 2
-
 // define encoder indices
 #define L_ENC 0
 #define R_ENC 1
-
-//
-// Begin encoder defines
-//
-
-
-
-/*
- * State table (For each encoder):
- *
- * 3 is rest position
- * 01 00 10 11 left 1 0 2 3
- * 10 00 01 11 right  2 0 1 3
- *
- * '*' shouldn't happen, as only encoder value changes are processed
- *
- * State Name | New encoder Val | Next State
- * -----------|-----------------|-----------
- * 0 REST     |       0         | WF3 (wait for 3)
- *            |       1         | CCW1
- *            |       2         | CW1
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 1 WF3      |       0         | WF3
- *            |       1         | WF3
- *            |       2         | WF3
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 2 CCW1     |       0         | CCW2
- *            |       1         | CCW1 *
- *            |       2         | WF3
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 3 CCW2     |       0         | CCW2 *
- *            |       1         | WF3
- *            |       2         | CCW3
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 4 CCW3     |       0         | WF3
- *            |       1         | WF3
- *            |       2         | CCW3 *
- *            |       3         | REST (CCW++)
- * -----------|-----------------|-----------
- * 5 CW1      |       0         | CW2
- *            |       1         | WF3
- *            |       2         | CW1 *
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 6 CW2      |       0         | CW2 *
- *            |       1         | CW3
- *            |       2         | WF3
- *            |       3         | REST
- * -----------|-----------------|-----------
- * 7 CW3      |       0         | WF3
- *            |       1         | CW3 *
- *            |       2         | WF3
- *            |       3         | REST (CW++)
- * -----------|-----------------|-----------
- */
-
-// States for Rotary encoders
-#define RS_REST 0
-#define RS_WF3  1
-#define RS_CCW1 2
-#define RS_CCW2 3
-#define RS_CCW3 4
-#define RS_CW1  5
-#define RS_CW2  6
-#define RS_CW3  7
-#define RS_MAX_STATES 8
-
-#define RS_NUM_INPUT_VALUES 4
-#define RS_INC_CW  0x80
-#define RS_INC_CCW 0x40
-#define RS_MASK    0x0F
-
-// Globals for rotary encoder state machine
-
-static unsigned char enc_state[NUM_ENCODERS];
-
-const static unsigned char next_state[RS_MAX_STATES][RS_NUM_INPUT_VALUES] = {
-//const static unsigned char next_state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
-    RS_WF3,  RS_CCW1, RS_CW1,  RS_REST,                // 0 RS_REST
-    RS_WF3,  RS_WF3,  RS_WF3,  RS_REST,                // 1 RS_WF3
-    RS_CCW2, RS_CCW1, RS_WF3,  RS_REST,                // 2 RS_CCW1
-    RS_CCW2, RS_WF3,  RS_CCW3, RS_REST,                // 3 RS_CCW2
-    RS_WF3,  RS_WF3,  RS_CCW3, RS_REST | RS_INC_CCW,   // 4 RS_CCW3
-    RS_CW2,  RS_WF3,  RS_CW1,  RS_REST,                // 5 RS_CW1
-    RS_CW2,  RS_CW3,  RS_WF3,  RS_REST,                // 6 RS_CW2
-    RS_WF3,  RS_CW3,  RS_WF3,  RS_REST | RS_INC_CW     // 7 RS_CW3
-};
-
-//
-// End encoder defines
-//
 
 #define EXPIOSET (~(ACOUT|CCWOUT|CWOUT))
 
@@ -214,47 +118,6 @@ void display_error(char *errstr) {
   return;
 }
 */
-
-//
-// Begin encoder functions
-//
-
-int init_encoders(void) {
-    unsigned char i;
-    for (i=0; i<NUM_ENCODERS; i++)
-	enc_state[i] = RS_REST;
-}
-
-int do_enc_state(unsigned char newval, unsigned char encoder) {
-    unsigned char oldstate, newstate;
-    int count = 0;
-
-    if (encoder >= NUM_ENCODERS)
-	// TODO error
-	return 0;
-  
-    oldstate = enc_state[encoder];
-
-    newstate = next_state[oldstate][newval];
-
-    // Check the high bits to see whether we completed a click
-    if (newstate & RS_INC_CCW) {
-	count--;
-    } else if (newstate & RS_INC_CW) {
-	count++;
-    }
-
-    // get the clean state
-    newstate &= RS_MASK;
-
-    enc_state[encoder] = newstate;
-
-    return count;
-}
-
-//
-// End encoder functions
-//
 
 LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
 
