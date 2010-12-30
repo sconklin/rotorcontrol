@@ -9,15 +9,13 @@
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
 
-http://www.neufeld.newton.ks.us/electronics/?p=241
 */
-//#include <Wire.h>
 #include <LiquidCrystal.h>
 #include "rotor.h"
 #include "encoders.h"
 #include "expansion.h"
 
-// globals for testing
+// globals for input
 unsigned char lastinput, thisinput;
 
 /*
@@ -37,7 +35,6 @@ void setup() {
   Serial.begin(9600);
 
   init_expansion();
-
   init_encoders();
 
   lcd = LiquidCrystal(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
