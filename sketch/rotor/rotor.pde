@@ -61,84 +61,91 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 // Begin encoder defines
 //
 
+
+
 /*
  * State table (For each encoder):
+ *
+ * 3 is rest position
+ * 01 00 10 11 left 1 0 2 3
+ * 10 00 01 11 right  2 0 1 3
  *
  * '*' shouldn't happen, as only encoder value changes are processed
  *
  * State Name | New encoder Val | Next State
  * -----------|-----------------|-----------
- * REST       |       0         | WF3 (wait for 3)
- *            |       1         | CW1
- *            |       2         | CCW1
+ * 0 REST     |       0         | WF3 (wait for 3)
+ *            |       1         | CCW1
+ *            |       2         | CW1
  *            |       3         | REST
  * -----------|-----------------|-----------
- * WF3        |       0         | WF3
+ * 1 WF3      |       0         | WF3
  *            |       1         | WF3
  *            |       2         | WF3
  *            |       3         | REST
  * -----------|-----------------|-----------
- * CW1        |       0         | CW2
- *            |       1         | CW1 *
+ * 2 CCW1     |       0         | CCW2
+ *            |       1         | CCW1 *
  *            |       2         | WF3
  *            |       3         | REST
  * -----------|-----------------|-----------
- * CW2        |       0         | CW2 *
+ * 3 CCW2     |       0         | CCW2 *
  *            |       1         | WF3
- *            |       2         | CW3
+ *            |       2         | CCW3
  *            |       3         | REST
  * -----------|-----------------|-----------
- * CW3        |       0         | WF3
+ * 4 CCW3     |       0         | WF3
  *            |       1         | WF3
- *            |       2         | CW3 *
- *            |       3         | REST (CW++)
- * -----------|-----------------|-----------
- * CCW1       |       0         | CCW2
- *            |       1         | WF3
- *            |       2         | CCW1 *
- *            |       3         | REST
- * -----------|-----------------|-----------
- * CCW2       |       0         | CCW2 *
- *            |       1         | CCW3
- *            |       2         | WF3
- *            |       3         | REST
- * -----------|-----------------|-----------
- * CCW3       |       0         | WF3
- *            |       1         | CCW3 *
- *            |       2         | WF3
+ *            |       2         | CCW3 *
  *            |       3         | REST (CCW++)
+ * -----------|-----------------|-----------
+ * 5 CW1      |       0         | CW2
+ *            |       1         | WF3
+ *            |       2         | CW1 *
+ *            |       3         | REST
+ * -----------|-----------------|-----------
+ * 6 CW2      |       0         | CW2 *
+ *            |       1         | CW3
+ *            |       2         | WF3
+ *            |       3         | REST
+ * -----------|-----------------|-----------
+ * 7 CW3      |       0         | WF3
+ *            |       1         | CW3 *
+ *            |       2         | WF3
+ *            |       3         | REST (CW++)
  * -----------|-----------------|-----------
  */
 
 // States for Rotary encoders
 #define RS_REST 0
-#define RS_WF3 1
-#define RS_CW1 2
-#define RS_CW2 3
-#define RS_CW3 4
-#define RS_CCW1 5
-#define RS_CCW2 6
-#define RS_CCW3 7
+#define RS_WF3  1
+#define RS_CCW1 2
+#define RS_CCW2 3
+#define RS_CCW3 4
+#define RS_CW1  5
+#define RS_CW2  6
+#define RS_CW3  7
 #define RS_MAX_STATES 8
 
 #define RS_NUM_INPUT_VALUES 4
-#define RS_INC_CCW 0x80
-#define RS_INC_CW 0x40
-#define RS_MASK 0x0F
+#define RS_INC_CW  0x80
+#define RS_INC_CCW 0x40
+#define RS_MASK    0x0F
 
 // Globals for rotary encoder state machine
 
 static unsigned char enc_state[NUM_ENCODERS];
 
-const static unsigned char next_state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
-    RS_WF3,  RS_CW1,  RS_CCW1, RS_REST,                // RS_REST
-    RS_WF3,  RS_WF3,  RS_WF3,  RS_REST,                // RS_WF3
-    RS_CW2,  RS_CW1,  RS_WF3,  RS_REST,                // RS_CW1
-    RS_CW2,  RS_WF3,  RS_CW3,  RS_REST,                // RS_CW2
-    RS_WF3,  RS_WF3,  RS_CW3,  RS_REST | RS_INC_CW,    // RS_CW3
-    RS_CCW2, RS_WF3,  RS_CCW1, RS_REST,                // RS_CCW1
-    RS_CCW2, RS_CCW3, RS_WF3,  RS_REST,                // RS_CCW2
-    RS_WF3,  RS_CCW3, RS_WF3,  RS_REST | RS_INC_CCW    // RS_CCW3
+const static unsigned char next_state[RS_MAX_STATES][RS_NUM_INPUT_VALUES] = {
+//const static unsigned char next_state[RS_NUM_INPUT_VALUES][RS_MAX_STATES] = {
+    RS_WF3,  RS_CCW1, RS_CW1,  RS_REST,                // 0 RS_REST
+    RS_WF3,  RS_WF3,  RS_WF3,  RS_REST,                // 1 RS_WF3
+    RS_CCW2, RS_CCW1, RS_WF3,  RS_REST,                // 2 RS_CCW1
+    RS_CCW2, RS_WF3,  RS_CCW3, RS_REST,                // 3 RS_CCW2
+    RS_WF3,  RS_WF3,  RS_CCW3, RS_REST | RS_INC_CCW,   // 4 RS_CCW3
+    RS_CW2,  RS_WF3,  RS_CW1,  RS_REST,                // 5 RS_CW1
+    RS_CW2,  RS_CW3,  RS_WF3,  RS_REST,                // 6 RS_CW2
+    RS_WF3,  RS_CW3,  RS_WF3,  RS_REST | RS_INC_CW     // 7 RS_CW3
 };
 
 //
@@ -223,33 +230,22 @@ int do_enc_state(unsigned char newval, unsigned char encoder) {
     int count = 0;
 
     if (encoder >= NUM_ENCODERS)
-	// error
+	// TODO error
 	return 0;
   
-    Serial.print("Encoder: ");
-    Serial.print(encoder, DEC);
-    Serial.print(" : ");
-    
     oldstate = enc_state[encoder];
 
     newstate = next_state[oldstate][newval];
-    Serial.print(oldstate, DEC);
-    Serial.print(" -> ");
-    Serial.println(newstate, DEC);
 
     // Check the high bits to see whether we completed a click
     if (newstate & RS_INC_CCW) {
 	count--;
-        Serial.println("Minus");
     } else if (newstate & RS_INC_CW) {
 	count++;
-        Serial.println("Plus");
     }
 
     // get the clean state
     newstate &= RS_MASK;
-    Serial.print("new: ");
-    Serial.println(newstate, DEC);
 
     enc_state[encoder] = newstate;
 
@@ -263,6 +259,7 @@ int do_enc_state(unsigned char newval, unsigned char encoder) {
 LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
 
 void setup() {
+  int i, j;
   
   Serial.begin(9600);
 
@@ -281,6 +278,7 @@ void setup() {
   // init the input variables
   // TODO check for unexpected state here
   lastinput = expansion_read();
+
 }
 
 void loop() {
@@ -301,6 +299,7 @@ void loop() {
     // Input changed since our last read
     unsigned char changes;
     thisinput = expansion_read();
+    //Serial.println(thisinput, BIN);
     changes = thisinput ^ lastinput;
     if ((changes & RBIN) && (thisinput & RBIN)) {
       // right button changed
@@ -312,25 +311,21 @@ void loop() {
     }
     if (changes & (RENA | RENB)) {
       // right encoder changed
-      unsigned char encval = (changes & (RENA | RENB)) >> RENSHIFT;
-      //Serial.print("right encoder ");
-      //Serial.print(encval, BIN);
+      unsigned char encval = (thisinput & (RENA | RENB)) >> RENSHIFT;
       encoder_moved = do_enc_state(encval, R_ENC);
-      //Serial.println("");
-      Serial.println("Right: ");
-      Serial.print(encoder_moved, DEC);
-      Serial.println("");
+      if (encoder_moved) {
+        Serial.print("Right ");
+        Serial.println(encoder_moved, DEC);
+      }
     }
     if (changes & (LENA | LENB)) {
       // left encoder changed
-      unsigned char encval = (changes & (LENA | LENB)) >> LENSHIFT;
-      //Serial.print("left encoder");
-      //Serial.print(encval, BIN);
+      unsigned char encval = (thisinput & (LENA | LENB)) >> LENSHIFT;
       encoder_moved = do_enc_state(encval, L_ENC);
-      //Serial.println("");
-      Serial.println("Left: ");
-      Serial.print(encoder_moved, DEC);
-      Serial.println("");
+      if (encoder_moved) {
+        Serial.print("Left ");
+        Serial.println(encoder_moved, DEC);
+      }
     }
     lastinput = thisinput;
   }
