@@ -10,58 +10,14 @@
 
 http://www.neufeld.newton.ks.us/electronics/?p=241
 */
-#include <Wire.h>
+//#include <Wire.h>
 #include <LiquidCrystal.h>
 #include "rotor.h"
 #include "encoders.h"
+#include "expansion.h"
 
 // globals for testing
 unsigned char lastinput, thisinput;
-
-void expansion_dir(int dir) {
-  //  Send config register address
-  Wire.beginTransmission(EXPADDR);
-  Wire.send(REGISTER_CONFIG0);
-
-  //  Connect to device and send two bytes
-  Wire.send(0xff & dir);  //  low byte
-  Wire.send(dir >> 8);    //  high byte
-
-  Wire.endTransmission();
-}
-
-void gpio_write(int address, int data) {
-  //  Send output register address
-  Wire.beginTransmission(address);
-  Wire.send(REGISTER_OUTPUT0);
-
-  //  Connect to device and send two bytes
-  Wire.send(0xff & data);  //  low byte
-  Wire.send(data >> 8);    //  high byte
-
-  Wire.endTransmission();
-}
-
-unsigned int expansion_read() {
-  unsigned char data = 0;
-
-  //  Send input register address
-  Wire.beginTransmission(EXPADDR);
-  Wire.send(REGISTER_INPUT1);
-  Wire.endTransmission();
-
-  //  Connect to device and request two bytes
-  Wire.beginTransmission(EXPADDR);
-  Wire.requestFrom(EXPADDR, 1);
-
-  if (Wire.available()) {
-    data = Wire.receive();
-  }
-
-  Wire.endTransmission();
-
-  return data;
-}
 
 /*
 void display_error(char *errstr) {
@@ -79,9 +35,7 @@ void setup() {
   
   Serial.begin(9600);
 
-  Wire.begin();
-
-  expansion_dir(EXPIOSET);
+  init_expansion();
 
   init_encoders();
 
