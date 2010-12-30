@@ -1,3 +1,4 @@
+// -*- Mode:c -*-
 /*
   Antenna Rotor Controller
  

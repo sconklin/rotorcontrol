@@ -1,3 +1,4 @@
+// -*- Mode:c -*-
 /*
   Encoder handler code
  
