@@ -11,9 +11,14 @@
 
 */
 #include <LiquidCrystal.h>
+#include <avr/interrupt.h>
+#include <avr/io.h>
 #include "rotor.h"
 #include "encoders.h"
 #include "expansion.h"
+
+#define INIT_TIMER_COUNT 6
+#define RESET_TIMER2 TCNT2 = INIT_TIMER_COUNT
 
 // globals for input
 unsigned char lastinput, thisinput;
@@ -27,7 +32,21 @@ void display_error(char *errstr) {
 }
 */
 
+volatile int milliseconds = 0;
+volatile int seconds = 0;
+
 LiquidCrystal lcd(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
+
+// Aruino runs at 16 Mhz, so we have 1000 Overflows per second…
+// 1/ ((16000000 / 64) / 256) = 1 / 1000
+ISR(TIMER2_OVF_vect) {
+    RESET_TIMER2;
+    milliseconds++;
+    if (milliseconds == 1000) {
+	seconds+=1;
+	milliseconds = 0;
+    }
+}
 
 void setup() {
   int i, j;
@@ -47,6 +66,17 @@ void setup() {
   // TODO check for unexpected state here
   lastinput = expansion_read();
 
+  // Timer2 Settings: Timer Prescaler /64,
+  TCCR2A |= (1<<CS22);
+  TCCR2A &= ~((1<<CS21) | (1<<CS20));
+  // Use normal mode
+  TCCR2A &= ~((1<<WGM21) | (1<<WGM20));
+  // Use internal clock – external clock not used in Arduino
+  ASSR |= (0<<AS2);
+  // Timer2 Overflow Interrupt Enable
+  TIMSK2 |= (1<<TOIE2) | (0<<OCIE2A);
+  sei();
+  // End timer2 setup
 }
 
 void loop() {
@@ -64,6 +94,10 @@ void loop() {
 */
   // Check to see if we got any input events
   if (digitalRead(2) == 0) {
+      Serial.print(seconds, DEC);
+      Serial.print(".");
+      Serial.print(milliseconds, DEC);
+      Serial.println(" seconds");
     // Input changed since our last read
     unsigned char changes;
     thisinput = expansion_read();
