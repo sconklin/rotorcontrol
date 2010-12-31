@@ -84,10 +84,20 @@
 
 #define NUM_ENCODERS 2
 
+
+// Possible inputs
+#define L_PRESS 0x01
+#define R_PRESS 0x02
+#define R_CW    0x04
+#define R_CCW   0x08
+#define L_CW    0x10
+#define L_CCW   0x20
+
 //
 // Encoder functions
 //
 int init_encoders(void);
 int do_enc_state(unsigned char, unsigned char);
+unsigned char get_input_events(void);
 
 #endif /* _ENCODER_H_ */

@@ -29,10 +29,14 @@ const static unsigned char next_state[RS_MAX_STATES][RS_NUM_INPUT_VALUES] = {
     RS_WF3,  RS_CW3,  RS_WF3,  RS_REST | RS_INC_CW     // 7 RS_CW3
 };
 
+// globals for input
+static unsigned char lastinput;
+
 int init_encoders(void) {
     unsigned char i;
     for (i=0; i<NUM_ENCODERS; i++)
 	enc_state[i] = RS_REST;
+    lastinput = expansion_read();
 }
 
 int do_enc_state(unsigned char newval, unsigned char encoder) {
@@ -60,4 +64,42 @@ int do_enc_state(unsigned char newval, unsigned char encoder) {
     enc_state[encoder] = newstate;
 
     return count;
+}
+
+unsigned char get_input_events(void) {
+    unsigned char in_events = 0;
+    unsigned char thisinput;
+    int encoder_moved;
+    // Check to see if we got any input events
+    if (digitalRead(2) == 0) {
+	unsigned char changes;
+	thisinput = expansion_read();
+	changes = thisinput ^ lastinput;
+	if ((changes & RBIN) && (thisinput & RBIN)) {
+	    in_events |= R_PRESS; // right button changed
+	}
+	if ((changes & LBIN) && (thisinput & LBIN)) {
+	    in_events |= L_PRESS; // left button changed
+	}
+	if (changes & (RENA | RENB)) {
+	    // right encoder changed
+	    unsigned char encval = (thisinput & (RENA | RENB)) >> RENSHIFT;
+	    encoder_moved = do_enc_state(encval, R_ENC);
+	    if (encoder_moved == 1)
+		in_events |= R_CW;
+	    else if (encoder_moved == -1)
+		in_events |= R_CCW;
+	}
+	if (changes & (LENA | LENB)) {
+	    // left encoder changed
+	    unsigned char encval = (thisinput & (LENA | LENB)) >> LENSHIFT;
+	    encoder_moved = do_enc_state(encval, L_ENC);
+	    if (encoder_moved == 1)
+		in_events |= L_CW;
+	    else if (encoder_moved == -1)
+		in_events |= L_CCW;
+	}
+	lastinput = thisinput;
+    }
+    return in_events;
 }
