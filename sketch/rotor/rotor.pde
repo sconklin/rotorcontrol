@@ -23,6 +23,14 @@
 // globals for input
 unsigned char lastinput, thisinput;
 
+// Possible inputs
+#define L_PRESS 0x01
+#define R_PRESS 0x02
+#define R_CW    0x04
+#define R_CCW   0x08
+#define L_CW    0x10
+#define L_CCW   0x20
+
 /*
 void display_error(char *errstr) {
   // TODO
@@ -48,8 +56,44 @@ ISR(TIMER2_OVF_vect) {
     }
 }
 
+unsigned char get_input_events(void) {
+    unsigned char in_events = 0;
+    int encoder_moved;
+    // Check to see if we got any input events
+    if (digitalRead(2) == 0) {
+	unsigned char changes;
+	thisinput = expansion_read();
+	changes = thisinput ^ lastinput;
+	if ((changes & RBIN) && (thisinput & RBIN)) {
+	    in_events |= R_PRESS; // right button changed
+	}
+	if ((changes & LBIN) && (thisinput & LBIN)) {
+	    in_events |= L_PRESS; // left button changed
+	}
+	if (changes & (RENA | RENB)) {
+	    // right encoder changed
+	    unsigned char encval = (thisinput & (RENA | RENB)) >> RENSHIFT;
+	    encoder_moved = do_enc_state(encval, R_ENC);
+	    if (encoder_moved == 1)
+		in_events |= R_CW;
+	    else if (encoder_moved == -1)
+		in_events |= R_CCW;
+	}
+	if (changes & (LENA | LENB)) {
+	    // left encoder changed
+	    unsigned char encval = (thisinput & (LENA | LENB)) >> LENSHIFT;
+	    encoder_moved = do_enc_state(encval, L_ENC);
+	    if (encoder_moved == 1)
+		in_events |= L_CW;
+	    else if (encoder_moved == -1)
+		in_events |= L_CCW;
+	}
+	lastinput = thisinput;
+    }
+    return in_events;
+}
+
 void setup() {
-  int i, j;
   
   Serial.begin(9600);
 
@@ -80,9 +124,8 @@ void setup() {
 }
 
 void loop() {
-  unsigned char value;
   int numser;
-  int encoder_moved;
+  static unsigned char ui_events;
   
   // Check for serial data
   /*
@@ -92,44 +135,14 @@ void loop() {
     // inbyte = Serial.read()
   }
 */
+
   // Check to see if we got any input events
-  if (digitalRead(2) == 0) {
+  ui_events = get_input_events();
+  if (ui_events) {
       Serial.print(seconds, DEC);
       Serial.print(".");
       Serial.print(milliseconds, DEC);
       Serial.println(" seconds");
-    // Input changed since our last read
-    unsigned char changes;
-    thisinput = expansion_read();
-    //Serial.println(thisinput, BIN);
-    changes = thisinput ^ lastinput;
-    if ((changes & RBIN) && (thisinput & RBIN)) {
-      // right button changed
-      Serial.println("right button press");
-    }
-    if ((changes & LBIN) && (thisinput & LBIN)) {
-      // left button changed
-      Serial.println("left button press");
-    }
-    if (changes & (RENA | RENB)) {
-      // right encoder changed
-      unsigned char encval = (thisinput & (RENA | RENB)) >> RENSHIFT;
-      encoder_moved = do_enc_state(encval, R_ENC);
-      if (encoder_moved) {
-        Serial.print("Right ");
-        Serial.println(encoder_moved, DEC);
-      }
-    }
-    if (changes & (LENA | LENB)) {
-      // left encoder changed
-      unsigned char encval = (thisinput & (LENA | LENB)) >> LENSHIFT;
-      encoder_moved = do_enc_state(encval, L_ENC);
-      if (encoder_moved) {
-        Serial.print("Left ");
-        Serial.println(encoder_moved, DEC);
-      }
-    }
-    lastinput = thisinput;
   }
   
   // set the cursor to column 0, line 1
