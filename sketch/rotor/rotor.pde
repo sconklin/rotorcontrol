@@ -67,6 +67,7 @@ void bit_on(unsigned char fbit) {
   }
   out_port |= fbit;
   gpio_write(EXPADDR, out_port);
+  return;
 }
 
 void bit_off(unsigned char fbit) {
@@ -80,12 +81,14 @@ void motor_off(void) {
 }
 
 void setup() {
-  out_port = 0;
-  gpio_write(EXPADDR, 0);
   
   Serial.begin(9600);
 
+  out_port = 0;
+
   init_expansion();
+  gpio_write(EXPADDR, 0);
+
   init_encoders();
   init_timers();
 
@@ -95,8 +98,9 @@ void setup() {
   Serial.println("conklinhouse.com");
 
   lcd.print("conklinhouse.com");
+  going_right = 0;
   print_direction();
-  
+
   // Timer2 Settings: Timer Prescaler /64,
   TCCR2A |= (1<<CS22);
   TCCR2A &= ~((1<<CS21) | (1<<CS20));
@@ -108,8 +112,6 @@ void setup() {
   TIMSK2 |= (1<<TOIE2) | (0<<OCIE2A);
   sei();
   // End timer2 setup
-
-  going_right = 0;
 }
 
 void loop() {
@@ -126,7 +128,6 @@ void loop() {
     // inbyte = Serial.read()
   }
 */
-
   // Check to see if we got any input events
   ui_events = get_input_events();
   /*
