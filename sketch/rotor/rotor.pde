@@ -62,7 +62,7 @@ void bit_on(unsigned char fbit) {
   unsigned char foo;
   foo = out_port | fbit;
   if ((foo & CWOUT) && (foo & CCWOUT)) {
-    Serial.println("Error - attempt to drive both directions");
+      //Serial.println("Error - attempt to drive both directions");
     return;
   }
   out_port |= fbit;
@@ -82,8 +82,6 @@ void motor_off(void) {
 
 void setup() {
   
-  Serial.begin(9600);
-
   out_port = 0;
 
   init_expansion();
@@ -91,11 +89,11 @@ void setup() {
 
   init_encoders();
   init_timers();
+  init_serial();
 
   lcd = LiquidCrystal(LCDRS, LCDEN, LCDD4, LCDD5, LCDD6, LCDD7);
 
   lcd.begin(LCDWIDTH, LCDHEIGHT);
-  Serial.println("conklinhouse.com");
 
   lcd.print("conklinhouse.com");
   going_right = 0;
@@ -146,18 +144,18 @@ void loop() {
 
   if (ui_events & L_PRESS) {
     if (motor_on) {
-      Serial.println("Refusing to turn motor on twice");
+	//Serial.println("Refusing to turn motor on twice");
     } else {
       // Start rotor motor on left press
       // Engage lock
-      Serial.println("brake disengaged");
+      //Serial.println("brake disengaged");
       bit_on(ACOUT);
       // Engage motor
       if (going_right) {
-        Serial.println("motor on right");
+	  //Serial.println("motor on right");
         bit_on(CWOUT);
       } else {
-        Serial.println("motor on left");
+	  //Serial.println("motor on left");
         bit_on(CCWOUT);
       }
       motor_on = 1;
@@ -166,14 +164,14 @@ void loop() {
 
   if (ui_events & R_PRESS) {
     // Turn off motor and set timer
-    Serial.println("Motor off - start timer");
+    //Serial.println("Motor off - start timer");
     motor_off();
     set_timer(0, 5000);
   }
     
   tcheck = get_timers();
   if (tcheck) {
-    Serial.println("timer expired - engage brake");
+      //Serial.println("timer expired - engage brake");
     // engage lock
     bit_off(ACOUT);
     motor_on = 0;
