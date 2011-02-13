@@ -1,9 +1,8 @@
 // -*- Mode:c -*-
 /*
   Antenna Rotor Controller
-  Error code
  
- Copyright 2010 Steve Conklin <steve@conklinhouse.com>
+ Copyright 2011 Steve Conklin AI4QR <steve@conklinhouse.com>
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -12,7 +11,7 @@
 
 */
 
-#include "error.h"
+#include "misc.h"
 void rotor_error(int errnum) {
     while (1) {
 	// clear the screen

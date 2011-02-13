@@ -1,8 +1,9 @@
 /*
   Antenna Rotor Controller
-  Error code
+  
+  Miscellaneous things
 
- Copyright 2010 Steve Conklin <steve@conklinhouse.com>
+ Copyright 2011 Steve Conklin AI4QR <steve@conklinhouse.com>
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -11,8 +12,8 @@
 
 */
 
-#ifndef _ERROR_H_
-#define _ERROR_H_
+#ifndef _MISC_H_
+#define _MISC_H_
 
 
 #define ERR_SERIAL_STATE 1
@@ -20,4 +21,4 @@
 
 void rotor_error(int errnum);
 
-#endif /* _ERROR_H_ */
+#endif /* _MISC_H_ */
