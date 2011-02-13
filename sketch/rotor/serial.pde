@@ -12,7 +12,27 @@
 */
 
 #include "serial.h"
-#include "error.h"
+#include "misc.h"
+
+
+
+// Globals for serial handler code
+
+static unsigned char serial_state;
+
+static char inbuffer[10];
+
+static int heading_memory[10];
+
+static unsigned char state;
+static unsigned char heading_digits;
+
+int init_serial(void) {
+  state = SRS_IDLE;
+  heading_digits = 0;
+  Serial.begin(9600);
+}
+
 
 // DCU-1 protocol:
 // (Max of 9 characters in a command)
@@ -22,32 +42,59 @@
 // APnxxx(.y); - Sets rotation degrees to xxx degrees and optionslly y tenths for next AMn; command
 // AMn; send rotor to last APn setting
 
-
-// Globals for serial handler code
-
-static unsigned char serial_state;
-
-static int inbuffer[12];
-
-int init_serial(void) {
-  Serial.begin(9600);
-}
-
-#define SRS_IDLE = 0
-#define SRS_PARTIAL_COMMAND1 = 1
-#define SRS_PARTIAL_COMMAND2 = 2
-#define SRS_NEED_HEADING = 3
-//#define SRS_HAVE_HEADING = 4
-#define SRS_NEED_TERMINATOR = 5
-#define SRS_UNSYNCED = 6
-
 void process_serial_command(void) {
+    int memno;
+    // We have a complete command in the inbuffer, do something with it
+    if (inbuffer[0] == 'S') {
+	// Begin debug
+	sprintf(textbuff, "Stop %d", inbuffer[2] - 48);
+	display_twolines("Command:", textbuff);
+	// End debug
+	stop_motion();
+	return;
+    }
+    memno = inbuffer[2] - 48;
+    if (inbuffer[1] == 'M') {
+	int heading = heading_memory[memno];
+	// Begin debug
+	sprintf(textbuff, "Move %d: %d", inbuffer[2] - 48, heading);
+	display_twolines("Command:", textbuff);
+	// End debug
+	// move to a memory
+	move_to(heading);
+    }
+    else if (inbuffer[1] == 'P') {
+	int frac = 0;
+	int azimuth = 0;
+	// set a memory
+	// round any fractional degrees
+	if (inbuffer[6] == '.') {
+	    frac = inbuffer[7]-48;
+	}
+	azimuth = (100 * (inbuffer[3]-48)) + (10 * (inbuffer[4]-48)) + (inbuffer[5]-48);
+	if ((frac > 4) && (frac <= 9))
+	    azimuth++;
+	heading_memory[memno] = azimuth;
+	// Begin debug
+	sprintf(textbuff, "Save %d: %d", inbuffer[2] - 48, azimuth);
+	display_twolines("Command:", textbuff);
+	// End debug
+    }
+    else {
+	// must be a read heading command 'I'
+	int az;
+	az = get_azimuth();
+	sprintf(textbuff, "%03d;", az);
+	Serial.print(textbuff);
+	// Begin debug
+	sprintf(textbuff, "Query %d: %d", inbuffer[2] - 48, az);
+	display_twolines("Command:", textbuff);
+	// End debug
+    }
 }
 
 int handle_serial_input(void) {
     int inbyte = 0;
-    static unsigned char state = SRS_IDLE;
-    static unsigned char heading_digits = 0
 
     // Read whatever characters are available
     inbyte = Serial.read();
@@ -108,13 +155,13 @@ int handle_serial_input(void) {
 	    }
 	    else if (inbyte == ';') {
 		state = SRS_IDLE;
-		process_serial_command()
+		process_serial_command();
 	    }
 	}
 	if (((inbyte >= '0') && (inbyte <= '9')) && (heading_digits < 5)) {
 	    inbuffer[3 + heading_digits++] = inbyte;
-	    if heading_digits == 5 {
-		    state = SRS_NEED_TERMINATOR
+	    if (heading_digits == 5) {
+		    state = SRS_NEED_TERMINATOR;
 		}
 	}
 	else
@@ -130,7 +177,7 @@ int handle_serial_input(void) {
 	    state == SRS_IDLE;
     }
     else {
-	rotor_error(ERR_SERIAL_STATE)
+	rotor_error(ERR_SERIAL_STATE);
     }
 }
 

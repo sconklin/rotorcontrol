@@ -13,6 +13,15 @@
 #ifndef _RSERIAL_H_
 #define _RSERIAL_H_
 
+
+#define SRS_IDLE 0
+#define SRS_PARTIAL_COMMAND1 1
+#define SRS_PARTIAL_COMMAND2 2
+#define SRS_NEED_HEADING 3
+//#define SRS_HAVE_HEADING 4
+#define SRS_NEED_TERMINATOR 5
+#define SRS_UNSYNCED 6
+
 //
 // Serial functions
 //

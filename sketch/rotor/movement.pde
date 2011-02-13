@@ -1,8 +1,7 @@
+// -*- Mode:c -*-
 /*
   Antenna Rotor Controller
-  
-  Miscellaneous things
-
+ 
  Copyright 2011 Steve Conklin AI4QR <steve@conklinhouse.com>
 
  This program is free software: you can redistribute it and/or modify
@@ -12,18 +11,21 @@
 
 */
 
-#ifndef _MISC_H_
-#define _MISC_H_
+#include "movement.h"
 
-// Error codes
-#define ERR_SERIAL_STATE 1
-#define ERR_SOMETHING_ELSE 2
+void move_to(int azimuth) {
+    return;
+}
 
-// Globals
-extern char textbuff[];
+void stop_motion(void) {
+    return;
+}
 
-void rotor_error(int errnum);
+int get_azimuth(void) {
+    return 0;
+}
 
-void display_twolines(char *one, char *two);
+int get_target(void) {
+    return 0;
+}
 
-#endif /* _MISC_H_ */

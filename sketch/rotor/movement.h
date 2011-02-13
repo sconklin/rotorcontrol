@@ -1,7 +1,7 @@
 /*
   Antenna Rotor Controller
   
-  Miscellaneous things
+  Movement code
 
  Copyright 2011 Steve Conklin AI4QR <steve@conklinhouse.com>
 
@@ -12,18 +12,13 @@
 
 */
 
-#ifndef _MISC_H_
-#define _MISC_H_
+#ifndef _MOVEMENT_H_
+#define _MOVEMENT_H_
 
-// Error codes
-#define ERR_SERIAL_STATE 1
-#define ERR_SOMETHING_ELSE 2
 
-// Globals
-extern char textbuff[];
+void move_to(int azimuth);
+void stop_motion(void);
+int get_azimuth(void);
+int get_target(void);
 
-void rotor_error(int errnum);
-
-void display_twolines(char *one, char *two);
-
-#endif /* _MISC_H_ */
+#endif /* _MOVEMENT_H_ */

@@ -11,6 +11,9 @@
 
 */
 
+// globals
+char textbuff[20];
+
 #include "misc.h"
 void rotor_error(int errnum) {
     while (1) {
@@ -26,3 +29,10 @@ void rotor_error(int errnum) {
     }
 }
 
+void display_twolines(char *one, char *two) {
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print(one);
+    lcd.setCursor(0,1);
+    lcd.print(two);
+}
