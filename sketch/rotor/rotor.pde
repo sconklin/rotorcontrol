@@ -86,7 +86,7 @@ void setup() {
 
   lcd.begin(LCDWIDTH, LCDHEIGHT);
 
-  lcd.print("conklinhouse.com");
+  lcd.print("     AI4QR");
   going_right = 0;
   print_direction();
 
@@ -127,6 +127,14 @@ void loop() {
       Serial.println(" seconds");
   }
   */
+
+  // This is a test program -
+  //
+  // Rotating left knob toggled rotation direction left or right
+  // Pressing the left button disengages the brake and turns on the motor
+  // Pressing the right button turns of the motor and begins the brake timer
+  // If the timer has expired, then engage the brake
+
   // Testing - left encoder selects direction
   if ((ui_events & L_CCW) || (ui_events & L_CW)) {
     going_right = !going_right;
