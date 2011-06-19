@@ -50,7 +50,7 @@ http://www.neufeld.newton.ks.us/electronics/?p=241
 #define LBIN 2  // left encode push button
 #define RENA 4  // Right encoder A
 #define RENB 8  // Right encoder B
-#define RENSHIFT 2
+#define RENSHIFT 2 // how many bits do we shift?
 #define LENA 16  // Left encoder A
 #define LENB 32  // Left encoder B
 #define LENSHIFT 4
