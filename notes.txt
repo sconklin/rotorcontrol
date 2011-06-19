@@ -254,7 +254,56 @@ if Serial input is present, parse it:
 
 
   // read the front panel buttons
-  enter and menu
-  only recognize menu if state is BRAKED
-  enter sends rotor to front panel position
-  menu enters configuration
+  Left button labeled "Menu", right labeled "Enter"
+
+============= User Interface =============
+
+  Normal Display
+  XXXXXXXXXXXXXXXXXXXX
+   Target: nnn  LOCK
+  Current: nnn  L B R
+  XXXXXXXXXXXXXXXXXXXX
+
+* When Braked only:
+  Left button enters Config Menu (No movement from serial commands while in Menu)
+  While in config menu:
+    Left button exits menu and re-enables serial movement
+    Left rotation selects setting
+    Right rotation changes setting value
+    Right button enters new setting value
+
+  Config Menu Display
+  XXXXXXXXXXXXXXXXXXXX
+   Name: Setting name
+  Value: Setting value
+  XXXXXXXXXXXXXXXXXXXX
+
+
+* When braked or when turning:
+  Right button stops rotation if moving, starts brake timer
+  Display Changes from "Target" to "Goto"
+  No serial movement commands are recognized
+
+  Goto Display
+  XXXXXXXXXXXXXXXXXXXX
+     Goto: nnn  LOCK
+  Current: nnn  L B R
+  XXXXXXXXXXXXXXXXXXXX
+
+  Left button exits back to normal mode and re-enables serial movement
+  Right rotation changes 'goto' heading
+  Right button enters target heading, starts movement, exits to normal mode
+
+===========================================================================
+
+Configuration Menu - types of settings:
+
+Integers - Max, Min
+List - Integer plus a list of names
+
+Each setting in the config menu has:
+  Type
+  min value
+  max value
+  ptr to handler for new setting
+  ptr to list of names (for list type)
