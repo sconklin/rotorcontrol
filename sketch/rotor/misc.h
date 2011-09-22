@@ -16,8 +16,11 @@
 #define _MISC_H_
 
 // Error codes
-#define ERR_SERIAL_STATE 1
-#define ERR_SOMETHING_ELSE 2
+// Serial errors start at 20
+#define ERR_SERIAL_STATE          21
+#define ERR_SOMETHING_ELSE        22
+// Input device errors start at 40
+#define ERR_INVALID_ENCODER       40
 
 // Globals
 extern char textbuff[];

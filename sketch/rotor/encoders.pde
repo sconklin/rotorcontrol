@@ -44,8 +44,7 @@ int do_enc_state(unsigned char newval, unsigned char encoder) {
     int count = 0;
 
     if (encoder >= NUM_ENCODERS)
-	// TODO error
-	return 0;
+	rotor_error(ERR_INVALID_ENCODER); // Does not return
   
     oldstate = enc_state[encoder];
 
