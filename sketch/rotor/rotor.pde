@@ -21,15 +21,6 @@
 #define INIT_TIMER_COUNT 6
 #define RESET_TIMER2 TCNT2 = INIT_TIMER_COUNT
 
-/*
-void display_error(char *errstr) {
-  // TODO
-  //lcd.setCursor(0, 1);
-  //lcd.print(errstr);
-  return;
-}
-*/
-
 static unsigned char going_right;
 static unsigned char out_port;
 

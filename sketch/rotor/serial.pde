@@ -14,8 +14,6 @@
 #include "serial.h"
 #include "misc.h"
 
-
-
 // Globals for serial handler code
 
 static unsigned char serial_state;
@@ -32,7 +30,6 @@ int init_serial(void) {
   heading_digits = 0;
   Serial.begin(9600);
 }
-
 
 // DCU-1 protocol:
 // (Max of 9 characters in a command)
