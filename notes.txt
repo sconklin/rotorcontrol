@@ -1,35 +1,12 @@
-Rotor I have: Ham IV
-Controller I have: Ham M
+This is being designed to operate an az/el rotator built from a pan/tilt camera mount.
 
-Looking at the Ham-M and Ham-IV controller schematics, the difference is that a N.O.
-momentary button has been added to the later controllers. This button energizes the
-rest of the motor control circuits and energizes the braker release solenoid. On
-older controllers, the brake is engaged as soon as you release the movement
-buttons, which can cause the brake to engage while the rotor is still coasting.
+Each axis is driven by a 120VAC motor. Each motor is directional and has three-leads. One lead is connected to neutral, and each other lead corresponds to a direction. 
 
-Rotor EZ is an addon for these controllers to add serial control. http://www.idiompress.com/rotor-ez.html
+There is no brake.
 
-* 5 second delay after movement to engage brake
-* support for 90 degree offset antenna
-* manual override
-* "algorithm to deal with position pot "dead spots"
-* programmable end points before end stops
-* LED status indication of brake and motor
-* Hy-Gain DCU-1 protocol support
+Protocol will be EASYCOMM II
 
-RotorEZ options controllable by hamlib:
-Endpoint
-JAM
-Overshoot
-Unstick
-
-
-DCU-1 protocol:
-; - stops all rotation
-AIn; - reads heading, returns three digits leading zeroes "xxx;"
-STn; - stops all rotation
-APnxxx(.y); - Sets rotation degrees to xxx degrees and optionslly y tenths for next AMn; command
-AMn; send rotor to last APn setting
+The remainder of this document was written before major design changes and is very innacurate.
 
 ===================================================================
 think about a feature set:
