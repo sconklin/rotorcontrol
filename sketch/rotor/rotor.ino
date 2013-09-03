@@ -37,10 +37,16 @@ char SERbuffer[serBufferMax];
 // Position variables
 int az_position = 0;
 int el_position = 0;
+int az_target = 0;
+int el_target = 0;
 float az_degrees = 0.0;
 float el_degrees = 0.0;
-float az_degrees_per_count = 0.1;
-float el_degrees_per_count = 0.1;
+float az_target_degrees = 0.0;
+float el_target_degrees = 0.0;
+float az_degrees_per_count = 0.0;
+float el_degrees_per_count = 0.0;
+int az_commanded = 0;
+int el_commanded = 0;
 
 // Position calibration variables
 // TODO move to eeprom storage
@@ -148,6 +154,28 @@ void setElUp(void)
   digitalWrite(el_dir_pin, HIGH);
 }
 
+void sendAz(void)
+{
+  Serial.print("AZ");
+  Serial.println(az_degrees, 1);
+}
+
+void sendEl(void)
+{
+  Serial.print("EL");
+  Serial.println(el_degrees, 1);
+}
+
+int degrees2Az(float deg)
+{
+  return (int(deg / az_degrees_per_count)+ az_low_end);
+}
+
+int degrees2El(float deg)
+{
+  return (int(deg / el_degrees_per_count)+ el_low_end);
+}
+
 void calibrate(void)
 {
   // THIS IS BROKEN
@@ -207,7 +235,7 @@ void handleSerial(int inbyte)
 
     // commands are exactly two characters long
     if (cmdsz < 2) {
-      Serial.println("short");
+      //Serial.println("short");
       return;
     }
 
@@ -224,13 +252,52 @@ void handleSerial(int inbyte)
     // now process it
     if (strncmp(SERbuffer, "AZ", 2) == 0) {
       // AZ
-      // If only two characters, just print current az
-      // TODO AZ
+      if (cmdsz == 2) {
+	// If only two characters, just print current az
+	sendAz();
+      } else {
+	az_target_degrees = atof(&SERbuffer[2]);
+	az_target = degrees2Az(az_target_degrees);
+	// check range
+	if ((az_target >= az_low_end) && (az_target <= az_high_end))
+	  {
+	    if (az_position < az_target) {
+	      setAzRight();
+	      startAz();
+	      az_commanded = 1;
+	    } else if (az_position > az_target) {
+	      setAzLeft();
+	      startAz();
+	      az_commanded = 1;
+	    }
+	    sendAz();
+	  }
+      }
       return;
     }
     else if (strncmp(SERbuffer, "EL", 2) == 0) {
       // EL
-      // TODO EL
+      if (cmdsz == 2) {
+	// If only two characters, just print current az
+	sendEl();
+      } else {
+	el_target_degrees = atof(&SERbuffer[2]);
+	el_target = degrees2El(el_target_degrees);
+	// check range
+	if ((el_target >= el_low_end) && (el_target <= el_high_end))
+	  {
+	    if (el_position < el_target) {
+	      setElUp();
+	      startEl();
+	      el_commanded = 1;
+	    } else if (el_position > el_target) {
+	      setElDown();
+	      startEl();
+	      el_commanded = 1;
+	    }
+	    sendEl();
+	  }
+      }
       return;
     }
     else if (strncmp(SERbuffer, "UP", 2) == 0) {
@@ -261,34 +328,40 @@ void handleSerial(int inbyte)
       // Move Left
       setAzLeft();
       startAz();
+      az_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "MR", 2) == 0) {
       // Move Right
       setAzRight();
       startAz();
+      az_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "MU", 2) == 0) {
       // Move Up
       setElUp();
       startEl();
+      el_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "MD", 2) == 0) {
       // Move Down
       setElDown();
       startEl();
+      el_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "SA", 2) == 0) {
       // Stop Azimuth Moving
       stopAz();
+      az_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "SE", 2) == 0) {
       // Stop Elevation Moving
       stopEl();
+      el_commanded = 0;
       return;
     }
     else if (strncmp(SERbuffer, "AO", 2) == 0) {
@@ -376,14 +449,48 @@ void loop() {
   az_degrees = az_degrees_per_count * float(az_position-az_low_end);
   el_degrees = el_degrees_per_count * float(el_position-el_low_end);
 
+  if (az_commanded)
+    {
+      if (azLeft() && (az_position <= az_target)) {
+	stopAz();
+	az_commanded = 0;
+	//Serial.print(az_position);
+	//Serial.print("  ");
+	//Serial.println(az_target);
+      } else if  (azRight() && (az_position >= az_target)) {
+	stopAz();
+	az_commanded = 0;
+	//Serial.print(az_position);
+	//Serial.print("  ");
+	//Serial.println(az_target);
+      }
+    }
+
+  if (el_commanded)
+    {
+      if (elDown() && (el_position <= el_target)) {
+	stopEl();
+	el_commanded = 0;
+	//Serial.print(el_position);
+	//Serial.print("  ");
+	//Serial.println(el_target);
+      } else if  (elUp() && (el_position >= el_target)) {
+	stopEl();
+	el_commanded = 0;
+	//Serial.print(el_position);
+	//Serial.print("  ");
+	//Serial.println(el_target);
+      }
+    }
+
   // Check for serial data
   while(Serial.available()) {
     handleSerial(Serial.read());
   }
 
-  Serial.print(az_degrees);
-  Serial.print("  ");
-  Serial.println(el_degrees);
+  //Serial.print(az_degrees);
+  //Serial.print("  ");
+  //Serial.println(el_degrees);
 
   //Serial.print(az_position);
   //Serial.print("  ");
