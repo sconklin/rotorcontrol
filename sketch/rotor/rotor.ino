@@ -12,7 +12,7 @@
 */
 //#include <avr/io.h>
 
-#define serBufferMax 32
+#define serBufferMax 40
 
 // Board pin connections
 int az_pwr_pin = 4;
@@ -27,7 +27,9 @@ int el_pos_pin = A1;
 // Serial input stuff
 int SERbfsz;
 int cmdsz;
+char *bufCpy;
 char SERbuffer[serBufferMax];
+char CMDbuffer[serBufferMax];
 
 //static unsigned char az_moving;
 //static unsigned char el_moving;
@@ -166,6 +168,14 @@ void sendEl(void)
   Serial.println(el_degrees, 1);
 }
 
+void sendAzEl(void)
+{
+  Serial.print("AZ");
+  Serial.print(az_degrees, 1);
+  Serial.print(" EL");
+  Serial.println(el_degrees, 1);
+}
+
 int degrees2Az(float deg)
 {
   return (int(deg / az_degrees_per_count)+ az_low_end);
@@ -226,172 +236,205 @@ void handleSerial(int inbyte)
 {
   //
   // If there is a character available on the serial port, accumulate it into
-  // a buffer. When completed by a newline, carriage return, or space, process it.
+  // a buffer. When completed by a newline, or carriage return, process it.
   //
-  if (inbyte == '\n' || inbyte == '\r' || inbyte == ' ') {
+  if (inbyte == '\n' || inbyte == '\r') {
     SERbuffer[SERbfsz++] = 0;
     cmdsz = SERbfsz - 1;
     SERbfsz = 0;
 
-    // commands are exactly two characters long
-    if (cmdsz < 2) {
-      //Serial.println("short");
+    // Assume ascii and make all letters uppercase
+    for (ii=0; ii < cmdsz; ii++)
+      if ((SERbuffer[ii] >= 97) && (SERbuffer[ii] <=122))
+	SERbuffer[ii]  &= ~(0x20);
+
+    // First check for the only 'command' that is longer than two characters.
+    // It's a combination of az and el position requests, and must be responded
+    // to with a single line, although this restriction may be an implementation
+    // consequence of hamlib
+
+    if (strncmp(SERbuffer, "AZ EL", 5) == 0) {
+      // position request
+      sendAzEl();
       return;
     }
-
-    //if (strncmp(SERbuffer, "Calibrate", 9) == 0) {
-    //  calibrate();
-    //  return;
-    //}
-    // It's safe to assume that we have two ascii characters at the beginning of the buffer
-    // because if we don't it won't match any commands anyway and we'll reject it.
-    // so, convert to upper case
-    SERbuffer[0] &= ~(0x20);
-    SERbuffer[1] &= ~(0x20);
-
-    // now process it
-    if (strncmp(SERbuffer, "AZ", 2) == 0) {
-      // AZ
-      if (cmdsz == 2) {
-	// If only two characters, just print current az
-	sendAz();
-      } else {
-	az_target_degrees = atof(&SERbuffer[2]);
-	az_target = degrees2Az(az_target_degrees);
-	// check range
-	if ((az_target >= az_low_end) && (az_target <= az_high_end))
-	  {
-	    if (az_position < az_target) {
-	      setAzRight();
-	      startAz();
-	      az_commanded = 1;
-	    } else if (az_position > az_target) {
-	      setAzLeft();
-	      startAz();
-	      az_commanded = 1;
-	    }
-	    sendAz();
+    
+    // within a command line, there can be one or more commands, separated by spaces
+    // Separate them on space boundaries, and process each
+    bufCpy = &SERbuffer[0];
+    while (*bufCpy != 0) {
+      ii = 0;
+      while (1) {
+	  if (*bufCpy == 0) {
+	    // end of serial input buffer
+	    CMDbuffer[ii++] = 0;
+	    break;
+	  } else if (*bufCpy == ' ') {
+	    // process what we've copied so far
+	    CMDbuffer[ii++] = 0;
+	    bufCpy++;
+	    break;
+	  } else {
+	    CMDbuffer[ii++] = *bufCpy++;
 	  }
       }
-      return;
-    }
-    else if (strncmp(SERbuffer, "EL", 2) == 0) {
-      // EL
-      if (cmdsz == 2) {
-	// If only two characters, just print current az
-	sendEl();
-      } else {
-	el_target_degrees = atof(&SERbuffer[2]);
-	el_target = degrees2El(el_target_degrees);
-	// check range
-	if ((el_target >= el_low_end) && (el_target <= el_high_end))
-	  {
-	    if (el_position < el_target) {
-	      setElUp();
-	      startEl();
-	      el_commanded = 1;
-	    } else if (el_position > el_target) {
-	      setElDown();
-	      startEl();
-	      el_commanded = 1;
-	    }
-	    sendEl();
-	  }
+
+      cmdsz = strlen(CMDbuffer);
+      // commands are exactly two characters long
+      if (cmdsz < 2) {
+	//Serial.println("short");
+	return;
       }
-      return;
-    }
-    else if (strncmp(SERbuffer, "UP", 2) == 0) {
-      // Uplink Freq (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "DN", 2) == 0) {
-      // Downlink Freq (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "DM", 2) == 0) {
-      // Downlink Mode (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "UM", 2) == 0) {
-      // Uplink Mode (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "DR", 2) == 0) {
-      // Downlink Radio (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "UR", 2) == 0) {
-      // Uplink Radio (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "ML", 2) == 0) {
-      // Move Left
-      setAzLeft();
-      startAz();
-      az_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "MR", 2) == 0) {
-      // Move Right
-      setAzRight();
-      startAz();
-      az_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "MU", 2) == 0) {
-      // Move Up
-      setElUp();
-      startEl();
-      el_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "MD", 2) == 0) {
-      // Move Down
-      setElDown();
-      startEl();
-      el_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "SA", 2) == 0) {
-      // Stop Azimuth Moving
-      stopAz();
-      az_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "SE", 2) == 0) {
-      // Stop Elevation Moving
-      stopEl();
-      el_commanded = 0;
-      return;
-    }
-    else if (strncmp(SERbuffer, "AO", 2) == 0) {
-      // AOS (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "LO", 2) == 0) {
-      // LOS (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "OP", 2) == 0) {
-      // Set Output number (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "IP", 2) == 0) {
-      // Read an input (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "AN", 2) == 0) {
-      // Read Analog Input (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "ST", 2) == 0) {
-      // Set Time (ignore)
-      return;
-    }
-    else if (strncmp(SERbuffer, "VE", 2) == 0) {
-      // Version
-      Serial.println("VE001");
-      return;
+
+      //if (strncmp(CMDbuffer, "CALIBRATE", 9) == 0) {
+      //  calibrate();
+      //  return;
+      //}
+
+      // now process it
+      if (strncmp(CMDbuffer, "AZ", 2) == 0) {
+	// AZ
+	if (cmdsz == 2) {
+	  // If only two characters, just print current az
+	  sendAz();
+	} else {
+	  az_target_degrees = atof(&CMDbuffer[2]);
+	  az_target = degrees2Az(az_target_degrees);
+	  // check range
+	  if ((az_target >= az_low_end) && (az_target <= az_high_end))
+	    {
+	      if (az_position < az_target) {
+		setAzRight();
+		startAz();
+		az_commanded = 1;
+	      } else if (az_position > az_target) {
+		setAzLeft();
+		startAz();
+		az_commanded = 1;
+	      }
+	      //sendAz();
+	    }
+	}
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "EL", 2) == 0) {
+	// EL
+	if (cmdsz == 2) {
+	  // If only two characters, just print current az
+	  sendEl();
+	} else {
+	  el_target_degrees = atof(&CMDbuffer[2]);
+	  el_target = degrees2El(el_target_degrees);
+	  // check range
+	  if ((el_target >= el_low_end) && (el_target <= el_high_end))
+	    {
+	      if (el_position < el_target) {
+		setElUp();
+		startEl();
+		el_commanded = 1;
+	      } else if (el_position > el_target) {
+		setElDown();
+		startEl();
+		el_commanded = 1;
+	      }
+	      //sendEl();
+	    }
+	}
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "UP", 2) == 0) {
+	// Uplink Freq (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "DN", 2) == 0) {
+	// Downlink Freq (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "DM", 2) == 0) {
+	// Downlink Mode (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "UM", 2) == 0) {
+	// Uplink Mode (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "DR", 2) == 0) {
+	// Downlink Radio (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "UR", 2) == 0) {
+	// Uplink Radio (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "ML", 2) == 0) {
+	// Move Left
+	setAzLeft();
+	startAz();
+	az_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "MR", 2) == 0) {
+	// Move Right
+	setAzRight();
+	startAz();
+	az_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "MU", 2) == 0) {
+	// Move Up
+	setElUp();
+	startEl();
+	el_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "MD", 2) == 0) {
+	// Move Down
+	setElDown();
+	startEl();
+	el_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "SA", 2) == 0) {
+	// Stop Azimuth Moving
+	stopAz();
+	az_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "SE", 2) == 0) {
+	// Stop Elevation Moving
+	stopEl();
+	el_commanded = 0;
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "AO", 2) == 0) {
+	// AOS (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "LO", 2) == 0) {
+	// LOS (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "OP", 2) == 0) {
+	// Set Output number (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "IP", 2) == 0) {
+	// Read an input (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "AN", 2) == 0) {
+	// Read Analog Input (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "ST", 2) == 0) {
+	// Set Time (ignore)
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "VE", 2) == 0) {
+	// Version
+	Serial.println("VE001");
+	continue;
+      }
     }
   }
   else {
@@ -400,7 +443,7 @@ void handleSerial(int inbyte)
       SERbuffer[SERbfsz++] = inbyte;
     else {
       // buffer overrun, just clear buffer and start over
-      Serial.println("clear");
+      //Serial.println("clear");
       SERbfsz = 0;
     }
     return;
