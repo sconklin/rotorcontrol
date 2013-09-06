@@ -13,6 +13,7 @@
 //#include <avr/io.h>
 
 #define serBufferMax 40
+#define JOG_DELAY 50
 
 // Board pin connections
 int az_pwr_pin = 4;
@@ -31,11 +32,6 @@ char *bufCpy;
 char SERbuffer[serBufferMax];
 char CMDbuffer[serBufferMax];
 
-//static unsigned char az_moving;
-//static unsigned char el_moving;
-//static unsigned char az_dir;
-//static unsigned char el_dir;
-
 // Position variables
 int az_position = 0;
 int el_position = 0;
@@ -52,10 +48,11 @@ int el_commanded = 0;
 
 // Position calibration variables
 // TODO move to eeprom storage
-int az_low_end  = 206;
+// NOTE - Elevation end stops are 2 counts past 0 and 180 degrees
+int az_low_end  = 204;
 int az_high_end = 817;
-int el_low_end = 359;
-int el_high_end = 668; // for 180 degrees
+int el_low_end = 361;
+int el_high_end = 666; // for 180 degrees
 
 #define NUM_SAMPLES 10
 int az_pos[NUM_SAMPLES];
@@ -108,6 +105,7 @@ void stopAz(void)
 {
   if (azMoving())
     {
+      //Serial.println("Stopping Az");
       digitalWrite(az_pwr_pin, LOW);
       delay(20); // Long enough to hit a zero cross
     }
@@ -118,6 +116,7 @@ void stopEl(void)
 {
   if (elMoving())
     {
+      //Serial.println("Stopping El");
       digitalWrite(el_pwr_pin, LOW);
       delay(20); // Long enough to hit a zero cross
     }
@@ -126,32 +125,40 @@ void stopEl(void)
 
 void setAzLeft(void)
 {
-  if (azLeft())
-      return
+  if (azLeft()) {
+    //Serial.println("moving left");
+    return;
+  }
   stopAz();
   digitalWrite(az_dir_pin, LOW);
 }
 
 void setAzRight(void)
 {
-  if (azRight())
-      return
+  if (azRight()) {
+    //Serial.println("moving right");
+    return;
+  }
   stopAz();
   digitalWrite(az_dir_pin, HIGH);
 }
 
 void setElDown(void)
 {
-  if (elDown())
-      return
+  if (elDown()) {
+    //Serial.println("moving down");
+    return;
+  }
   stopEl();
   digitalWrite(el_dir_pin, LOW);
 }
 
 void setElUp(void)
 {
-  if (elUp())
-      return
+  if (elUp()) {
+    //Serial.println("moving up");
+    return;
+  }
   stopEl();
   digitalWrite(el_dir_pin, HIGH);
 }
@@ -188,7 +195,6 @@ int degrees2El(float deg)
 
 void calibrate(void)
 {
-  // THIS IS BROKEN
   int val, oldval;
   stopAz();
   stopEl();
@@ -211,6 +217,7 @@ void calibrate(void)
 	}
 	delay(500);
     }
+  
   // move right until we no longer go any further
   setAzRight();
   startAz();
@@ -259,6 +266,11 @@ void handleSerial(int inbyte)
       return;
     }
     
+    // cheap and dirty park implementation
+    if (strncmp(SERbuffer, "PARK", 4) == 0) {
+      strcpy(SERbuffer, "AZ180 EL90");
+    }
+
     // within a command line, there can be one or more commands, separated by spaces
     // Separate them on space boundaries, and process each
     bufCpy = &SERbuffer[0];
@@ -286,10 +298,10 @@ void handleSerial(int inbyte)
 	return;
       }
 
-      //if (strncmp(CMDbuffer, "CALIBRATE", 9) == 0) {
-      //  calibrate();
-      //  return;
-      //}
+      if (strncmp(CMDbuffer, "CALIBRATE", 9) == 0) {
+        calibrate();
+        return;
+      }
 
       // now process it
       if (strncmp(CMDbuffer, "AZ", 2) == 0) {
@@ -340,6 +352,38 @@ void handleSerial(int inbyte)
 	      //sendEl();
 	    }
 	}
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "JU", 2) == 0) {
+	// Jog up
+	setElUp();
+	startEl();
+	delay(JOG_DELAY);
+	stopEl();
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "JD", 2) == 0) {
+	// Jog down
+	setElDown();
+	startEl();
+	delay(JOG_DELAY);
+	stopEl();
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "JL", 2) == 0) {
+	// Jog left
+	setAzLeft();
+	startAz();
+	delay(JOG_DELAY);
+	stopAz();
+	continue;
+      }
+      else if (strncmp(CMDbuffer, "JR", 2) == 0) {
+	// Jog right
+	setAzRight();
+	startAz();
+	delay(JOG_DELAY);
+	stopAz();
 	continue;
       }
       else if (strncmp(CMDbuffer, "UP", 2) == 0) {
@@ -423,7 +467,16 @@ void handleSerial(int inbyte)
 	continue;
       }
       else if (strncmp(CMDbuffer, "AN", 2) == 0) {
-	// Read Analog Input (ignore)
+	// Read Analog Input
+	ii = atoi(&CMDbuffer[2]);
+	if ((ii < 0) || (ii > 5)) {
+	  // out of range, ignore it
+	  continue;
+	}
+	Serial.print("AN");
+	Serial.print(ii);
+	Serial.print(",");
+	Serial.println(analogRead(ii+14));
 	continue;
       }
       else if (strncmp(CMDbuffer, "ST", 2) == 0) {
