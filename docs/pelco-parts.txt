@@ -1,0 +1,31 @@
+
+Here are some mouse part numbers for parts that fit the Pelco camera mount I have:
+
+=== Camera mount control cable connectors ===
+
+AMP Connector plug body
+AMP part# 206037-1
+Mouser part# 571-2060371
+
+AMP Plug backshell and clamp
+AMP part# 206070-8
+Mouser part# 571-206070-8
+
+AMP connector socket
+AMP part# 66592-1
+Mouser part# 571-665921
+
+AMP connector pin
+AMP part# 66591-1
+Mouser part# 571-665911
+
+AMP connector panel mount socket body
+AMP part# 206036-1
+Mouser part# 571-2060361
+
+=== replacement position potentiometers ===
+
+Vishay precision 7/8" wirewound potentiometer 5K Ohms, 10 turn
+Vishay/Spectrol part# 534-11502
+Mouser part# 594-53411502
+
