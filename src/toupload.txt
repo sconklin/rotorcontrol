@@ -1,3 +1,0 @@
-upload: applet/$(TARGET).hex
-    pulsedtr.py $(PORT)
-    $(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH)
