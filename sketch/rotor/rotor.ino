@@ -63,32 +63,32 @@ int ii = 0;
 
 int azMoving(void)
 {
-  return digitalRead(az_pwr_pin);
+  return bitRead(PORTD,az_pwr_pin);
 }
 
 int elMoving(void)
 {
-  return digitalRead(el_pwr_pin);
+  return bitRead(PORTD,el_pwr_pin);
 }
 
 int azLeft(void)
 {
-  return !digitalRead(az_dir_pin);
+  return !bitRead(PORTD,az_dir_pin);
 }
 
 int azRight(void)
 {
-  return digitalRead(az_dir_pin);
+  return bitRead(PORTD,az_dir_pin);
 }
 
 int elUp(void)
 {
-  return digitalRead(el_dir_pin);
+  return bitRead(PORTD,el_dir_pin);
 }
 
 int elDown(void)
 {
-  return !digitalRead(el_dir_pin);
+  return !bitRead(PORTD,el_dir_pin);
 }
 
 void startAz(void)
@@ -550,15 +550,9 @@ void loop() {
       if (azLeft() && (az_position <= az_target)) {
 	stopAz();
 	az_commanded = 0;
-	//Serial.print(az_position);
-	//Serial.print("  ");
-	//Serial.println(az_target);
       } else if  (azRight() && (az_position >= az_target)) {
 	stopAz();
 	az_commanded = 0;
-	//Serial.print(az_position);
-	//Serial.print("  ");
-	//Serial.println(az_target);
       }
     }
 
@@ -567,15 +561,9 @@ void loop() {
       if (elDown() && (el_position <= el_target)) {
 	stopEl();
 	el_commanded = 0;
-	//Serial.print(el_position);
-	//Serial.print("  ");
-	//Serial.println(el_target);
       } else if  (elUp() && (el_position >= el_target)) {
 	stopEl();
 	el_commanded = 0;
-	//Serial.print(el_position);
-	//Serial.print("  ");
-	//Serial.println(el_target);
       }
     }
 
@@ -584,17 +572,5 @@ void loop() {
     handleSerial(Serial.read());
   }
 
-  //Serial.print(az_degrees);
-  //Serial.print("  ");
-  //Serial.println(el_degrees);
-
-  //Serial.print(az_position);
-  //Serial.print("  ");
-  //Serial.println(el_position);
-
-  //delay(20); // Long enough to hit a zero cross
-
-  //delay(500);
-  //Serial.println("Hello World!");
 }
 
