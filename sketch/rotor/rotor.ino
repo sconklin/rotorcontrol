@@ -14,6 +14,7 @@
 
 #define serBufferMax 40
 #define JOG_DELAY 50
+#define IDLE_TIMEOUT_COUNTER 30000
 
 // Board pin connections
 int az_pwr_pin = 4;
@@ -45,6 +46,8 @@ float az_degrees_per_count = 0.0;
 float el_degrees_per_count = 0.0;
 int az_commanded = 0;
 int el_commanded = 0;
+int az_countdown = 0;
+int el_countdown = 0;
 
 // Position calibration variables
 // TODO move to eeprom storage
@@ -53,6 +56,10 @@ int az_low_end  = 204;
 int az_high_end = 817;
 int el_low_end = 361;
 int el_high_end = 666; // for 180 degrees
+
+// Beyond these limits, we assume an analog reading is a sensor failure
+int low_limit = 100;
+int high_limit = 900;
 
 #define NUM_SAMPLES 10
 int az_pos[NUM_SAMPLES];
@@ -360,6 +367,7 @@ void handleSerial(int inbyte)
 	startEl();
 	delay(JOG_DELAY);
 	stopEl();
+	setElDown(); // turn off relay to prevent current draw
 	continue;
       }
       else if (strncmp(CMDbuffer, "JD", 2) == 0) {
@@ -384,6 +392,7 @@ void handleSerial(int inbyte)
 	startAz();
 	delay(JOG_DELAY);
 	stopAz();
+	setAzLeft(); // turn off relay to prevent current draw
 	continue;
       }
       else if (strncmp(CMDbuffer, "UP", 2) == 0) {
@@ -442,12 +451,14 @@ void handleSerial(int inbyte)
 	// Stop Azimuth Moving
 	stopAz();
 	az_commanded = 0;
+	setAzLeft(); // turn relay off
 	continue;
       }
       else if (strncmp(CMDbuffer, "SE", 2) == 0) {
 	// Stop Elevation Moving
 	stopEl();
 	el_commanded = 0;
+	setElDown(); // turn relay off
 	continue;
       }
       else if (strncmp(CMDbuffer, "AO", 2) == 0) {
@@ -542,11 +553,32 @@ void loop() {
   az_position = az_position / 10;
   el_position = el_position / 10;
 
+  // Check for sensor failure
+  if ((az_position < low_limit) || (az_position > high_limit))
+    stopAz();
+  if ((el_position < low_limit) || (el_position > high_limit))
+    stopEl();
+
+  // TODO check for stuck sensor (moving, not at target, and reading not changing)
+
   az_degrees = az_degrees_per_count * float(az_position-az_low_end);
   el_degrees = el_degrees_per_count * float(el_position-el_low_end);
 
+  if (az_countdown) {
+    if (!--az_countdown) {
+      setAzLeft(); // turn off relay
+    }
+  }
+
+  if (el_countdown) {
+    if (!--el_countdown) {
+      setElDown(); // turn relay off
+    }
+  }
+
   if (az_commanded)
     {
+      az_countdown = IDLE_TIMEOUT_COUNTER;
       if (azLeft() && (az_position <= az_target)) {
 	stopAz();
 	az_commanded = 0;
@@ -558,6 +590,7 @@ void loop() {
 
   if (el_commanded)
     {
+      el_countdown = IDLE_TIMEOUT_COUNTER;
       if (elDown() && (el_position <= el_target)) {
 	stopEl();
 	el_commanded = 0;
