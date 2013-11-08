@@ -10,9 +10,10 @@
  (at your option) any later version.
 
 */
-//#include <avr/io.h>
+#include <Wire.h>
+#include <LiquidTWI.h>
 
-#define serBufferMax 40
+#define serBufferMax 80
 #define JOG_DELAY 50
 #define IDLE_TIMEOUT_COUNTER 30000
 
@@ -40,6 +41,8 @@ int az_target = 0;
 int el_target = 0;
 float az_degrees = 0.0;
 float el_degrees = 0.0;
+//float az_target = 0.0;
+//float el_target = 0.0;
 float az_target_degrees = 0.0;
 float el_target_degrees = 0.0;
 float az_degrees_per_count = 0.0;
@@ -67,6 +70,8 @@ int el_pos[NUM_SAMPLES];
 int sample_number = 0;
 
 int ii = 0;
+
+LiquidTWI lcd(0);
 
 int azMoving(void)
 {
@@ -246,6 +251,206 @@ void calibrate(void)
     }
 }
 
+void processCommand()
+{
+  lcd.setCursor(0, 3);
+  lcd.print("                    ");
+  lcd.setCursor(0, 3);
+  lcd.print(CMDbuffer);
+  // now process it
+  if (strncmp(CMDbuffer, "AZ", 2) == 0) {
+    // AZ
+    if (cmdsz == 2) {
+      // If only two characters, just print current az
+      sendAz();
+    } else {
+      az_target_degrees = atof(&CMDbuffer[2]);
+      az_target = degrees2Az(az_target_degrees);
+      // check range
+      if ((az_target >= az_low_end) && (az_target <= az_high_end))
+	{
+	  if (az_position < az_target) {
+	    setAzRight();
+	    startAz();
+	    az_commanded = 1;
+	  } else if (az_position > az_target) {
+	    setAzLeft();
+	    startAz();
+	    az_commanded = 1;
+	  }
+	  //sendAz();
+	}
+    }
+    return;
+  }
+  else if (strncmp(CMDbuffer, "EL", 2) == 0) {
+    // EL
+    if (cmdsz == 2) {
+      // If only two characters, just print current az
+      sendEl();
+    } else {
+      el_target_degrees = atof(&CMDbuffer[2]);
+      el_target = degrees2El(el_target_degrees);
+      // check range
+      if ((el_target >= el_low_end) && (el_target <= el_high_end))
+	{
+	  if (el_position < el_target) {
+	    setElUp();
+	    startEl();
+	    el_commanded = 1;
+	  } else if (el_position > el_target) {
+	    setElDown();
+	    startEl();
+	    el_commanded = 1;
+	  }
+	  //sendEl();
+	}
+    }
+    return;
+  }
+  else if (strncmp(CMDbuffer, "JU", 2) == 0) {
+    // Jog up
+    setElUp();
+    startEl();
+    delay(JOG_DELAY);
+    stopEl();
+    setElDown(); // turn off relay to prevent current draw
+    return;
+  }
+  else if (strncmp(CMDbuffer, "JD", 2) == 0) {
+    // Jog down
+    setElDown();
+    startEl();
+    delay(JOG_DELAY);
+    stopEl();
+    return;
+  }
+  else if (strncmp(CMDbuffer, "JL", 2) == 0) {
+    // Jog left
+    setAzLeft();
+    startAz();
+    delay(JOG_DELAY);
+    stopAz();
+    return;
+  }
+  else if (strncmp(CMDbuffer, "JR", 2) == 0) {
+    // Jog right
+    setAzRight();
+    startAz();
+    delay(JOG_DELAY);
+    stopAz();
+    setAzLeft(); // turn off relay to prevent current draw
+    return;
+  }
+  else if (strncmp(CMDbuffer, "UP", 2) == 0) {
+    // Uplink Freq (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "DN", 2) == 0) {
+    // Downlink Freq (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "DM", 2) == 0) {
+    // Downlink Mode (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "UM", 2) == 0) {
+    // Uplink Mode (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "DR", 2) == 0) {
+    // Downlink Radio (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "UR", 2) == 0) {
+    // Uplink Radio (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "ML", 2) == 0) {
+    // Move Left
+    setAzLeft();
+    startAz();
+    az_commanded = 0;
+    return;
+  }
+  else if (strncmp(CMDbuffer, "MR", 2) == 0) {
+    // Move Right
+    setAzRight();
+    startAz();
+    az_commanded = 0;
+    return;
+  }
+  else if (strncmp(CMDbuffer, "MU", 2) == 0) {
+    // Move Up
+    setElUp();
+    startEl();
+    el_commanded = 0;
+    return;
+  }
+  else if (strncmp(CMDbuffer, "MD", 2) == 0) {
+    // Move Down
+    setElDown();
+    startEl();
+    el_commanded = 0;
+    return;
+  }
+  else if (strncmp(CMDbuffer, "SA", 2) == 0) {
+    // Stop Azimuth Moving
+    stopAz();
+    az_commanded = 0;
+    setAzLeft(); // turn relay off
+    return;
+  }
+  else if (strncmp(CMDbuffer, "SE", 2) == 0) {
+    // Stop Elevation Moving
+    stopEl();
+    el_commanded = 0;
+    setElDown(); // turn relay off
+    return;
+  }
+  else if (strncmp(CMDbuffer, "AO", 2) == 0) {
+    // AOS (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "LO", 2) == 0) {
+    // LOS (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "OP", 2) == 0) {
+    // Set Output number (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "IP", 2) == 0) {
+    // Read an input (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "AN", 2) == 0) {
+    // Read Analog Input
+    ii = atoi(&CMDbuffer[2]);
+    if ((ii < 0) || (ii > 5)) {
+      // out of range, ignore it
+      return;
+    }
+    Serial.print("AN");
+    Serial.print(ii);
+    Serial.print(",");
+    Serial.println(analogRead(ii+14));
+    return;
+  }
+  else if (strncmp(CMDbuffer, "ST", 2) == 0) {
+    // Set Time (ignore)
+    return;
+  }
+  else if (strncmp(CMDbuffer, "VE", 2) == 0) {
+    // Version
+    Serial.println("VE001");
+    return;
+  }
+  else {
+    return;
+  }
+}
+
 void handleSerial(int inbyte)
 {
   //
@@ -257,6 +462,11 @@ void handleSerial(int inbyte)
     cmdsz = SERbfsz - 1;
     SERbfsz = 0;
 
+  lcd.setCursor(0, 2);
+  lcd.print("                    ");
+  lcd.setCursor(0, 2);
+  lcd.print(SERbuffer);
+
     // Assume ascii and make all letters uppercase
     for (ii=0; ii < cmdsz; ii++)
       if ((SERbuffer[ii] >= 97) && (SERbuffer[ii] <=122))
@@ -265,7 +475,7 @@ void handleSerial(int inbyte)
     // First check for the only 'command' that is longer than two characters.
     // It's a combination of az and el position requests, and must be responded
     // to with a single line, although this restriction may be an implementation
-    // consequence of hamlib
+    // consequence of hamlib. Subsequent commands on the same line are discarded.
 
     if (strncmp(SERbuffer, "AZ EL", 5) == 0) {
       // position request
@@ -274,10 +484,12 @@ void handleSerial(int inbyte)
     }
     
     // cheap and dirty park implementation
+    //  Subsequent commands on the same line are discarded.
     if (strncmp(SERbuffer, "PARK", 4) == 0) {
       strcpy(SERbuffer, "AZ180 EL90");
     }
 
+    // "AZ240.4 EL26.1 UP000 XXX DN000 XXX"
     // within a command line, there can be one or more commands, separated by spaces
     // Separate them on space boundaries, and process each
     bufCpy = &SERbuffer[0];
@@ -309,196 +521,7 @@ void handleSerial(int inbyte)
         calibrate();
         return;
       }
-
-      // now process it
-      if (strncmp(CMDbuffer, "AZ", 2) == 0) {
-	// AZ
-	if (cmdsz == 2) {
-	  // If only two characters, just print current az
-	  sendAz();
-	} else {
-	  az_target_degrees = atof(&CMDbuffer[2]);
-	  az_target = degrees2Az(az_target_degrees);
-	  // check range
-	  if ((az_target >= az_low_end) && (az_target <= az_high_end))
-	    {
-	      if (az_position < az_target) {
-		setAzRight();
-		startAz();
-		az_commanded = 1;
-	      } else if (az_position > az_target) {
-		setAzLeft();
-		startAz();
-		az_commanded = 1;
-	      }
-	      //sendAz();
-	    }
-	}
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "EL", 2) == 0) {
-	// EL
-	if (cmdsz == 2) {
-	  // If only two characters, just print current az
-	  sendEl();
-	} else {
-	  el_target_degrees = atof(&CMDbuffer[2]);
-	  el_target = degrees2El(el_target_degrees);
-	  // check range
-	  if ((el_target >= el_low_end) && (el_target <= el_high_end))
-	    {
-	      if (el_position < el_target) {
-		setElUp();
-		startEl();
-		el_commanded = 1;
-	      } else if (el_position > el_target) {
-		setElDown();
-		startEl();
-		el_commanded = 1;
-	      }
-	      //sendEl();
-	    }
-	}
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "JU", 2) == 0) {
-	// Jog up
-	setElUp();
-	startEl();
-	delay(JOG_DELAY);
-	stopEl();
-	setElDown(); // turn off relay to prevent current draw
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "JD", 2) == 0) {
-	// Jog down
-	setElDown();
-	startEl();
-	delay(JOG_DELAY);
-	stopEl();
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "JL", 2) == 0) {
-	// Jog left
-	setAzLeft();
-	startAz();
-	delay(JOG_DELAY);
-	stopAz();
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "JR", 2) == 0) {
-	// Jog right
-	setAzRight();
-	startAz();
-	delay(JOG_DELAY);
-	stopAz();
-	setAzLeft(); // turn off relay to prevent current draw
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "UP", 2) == 0) {
-	// Uplink Freq (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "DN", 2) == 0) {
-	// Downlink Freq (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "DM", 2) == 0) {
-	// Downlink Mode (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "UM", 2) == 0) {
-	// Uplink Mode (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "DR", 2) == 0) {
-	// Downlink Radio (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "UR", 2) == 0) {
-	// Uplink Radio (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "ML", 2) == 0) {
-	// Move Left
-	setAzLeft();
-	startAz();
-	az_commanded = 0;
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "MR", 2) == 0) {
-	// Move Right
-	setAzRight();
-	startAz();
-	az_commanded = 0;
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "MU", 2) == 0) {
-	// Move Up
-	setElUp();
-	startEl();
-	el_commanded = 0;
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "MD", 2) == 0) {
-	// Move Down
-	setElDown();
-	startEl();
-	el_commanded = 0;
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "SA", 2) == 0) {
-	// Stop Azimuth Moving
-	stopAz();
-	az_commanded = 0;
-	setAzLeft(); // turn relay off
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "SE", 2) == 0) {
-	// Stop Elevation Moving
-	stopEl();
-	el_commanded = 0;
-	setElDown(); // turn relay off
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "AO", 2) == 0) {
-	// AOS (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "LO", 2) == 0) {
-	// LOS (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "OP", 2) == 0) {
-	// Set Output number (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "IP", 2) == 0) {
-	// Read an input (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "AN", 2) == 0) {
-	// Read Analog Input
-	ii = atoi(&CMDbuffer[2]);
-	if ((ii < 0) || (ii > 5)) {
-	  // out of range, ignore it
-	  continue;
-	}
-	Serial.print("AN");
-	Serial.print(ii);
-	Serial.print(",");
-	Serial.println(analogRead(ii+14));
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "ST", 2) == 0) {
-	// Set Time (ignore)
-	continue;
-      }
-      else if (strncmp(CMDbuffer, "VE", 2) == 0) {
-	// Version
-	Serial.println("VE001");
-	continue;
-      }
+      processCommand();
     }
   }
   else {
@@ -530,14 +553,17 @@ void setup() {
   }
   Serial.begin(9600);
 
+  // Initialize the LCD display
+  lcd.begin(20, 4);
+  // Print a message to the LCD.
+  lcd.print("AI4QR");
+
   // make some one-time floating point calcs
   az_degrees_per_count = 360.0/(float(az_high_end)-float(az_low_end));
   el_degrees_per_count = 180.0/(float(el_high_end)-float(el_low_end));
 }
 
 void loop() {
-  int numser;
-  
   // read the positions, and average
   az_pos[sample_number] = analogRead(az_pos_pin);
   el_pos[sample_number] = analogRead(el_pos_pin);
@@ -554,10 +580,10 @@ void loop() {
   el_position = el_position / 10;
 
   // Check for sensor failure
-  if ((az_position < low_limit) || (az_position > high_limit))
-    stopAz();
-  if ((el_position < low_limit) || (el_position > high_limit))
-    stopEl();
+//  if ((az_position < low_limit) || (az_position > high_limit))
+//    stopAz();
+//  if ((el_position < low_limit) || (el_position > high_limit))
+//    stopEl();
 
   // TODO check for stuck sensor (moving, not at target, and reading not changing)
 
@@ -576,34 +602,67 @@ void loop() {
     }
   }
 
-  if (az_commanded)
-    {
-      az_countdown = IDLE_TIMEOUT_COUNTER;
-      if (azLeft() && (az_position <= az_target)) {
-	stopAz();
-	az_commanded = 0;
-      } else if  (azRight() && (az_position >= az_target)) {
-	stopAz();
-	az_commanded = 0;
-      }
+  if (az_commanded) {
+    az_countdown = IDLE_TIMEOUT_COUNTER;
+    if (azLeft() && (az_position <= az_target)) {
+      stopAz();
+      az_commanded = 0;
+    } else if  (azRight() && (az_position >= az_target)) {
+      stopAz();
+      az_commanded = 0;
     }
+  }
 
-  if (el_commanded)
-    {
-      el_countdown = IDLE_TIMEOUT_COUNTER;
-      if (elDown() && (el_position <= el_target)) {
-	stopEl();
-	el_commanded = 0;
-      } else if  (elUp() && (el_position >= el_target)) {
-	stopEl();
-	el_commanded = 0;
-      }
+  if (el_commanded) {
+    el_countdown = IDLE_TIMEOUT_COUNTER;
+    if (elDown() && (el_position <= el_target)) {
+      stopEl();
+      el_commanded = 0;
+    } else if  (elUp() && (el_position >= el_target)) {
+      stopEl();
+      el_commanded = 0;
     }
+  }
 
   // Check for serial data
   while(Serial.available()) {
     handleSerial(Serial.read());
   }
+
+  // Print debug output to LCD
+  // There are four lines.
+  // Top two reserved for operational info
+  // Bottom two for debugging
+  //
+  //   0123456789001234567890
+  // 0 TGT: AZ:nnn.n EL nnn.n
+  // 1 POS: AZ:nnn.n EL nnn.n
+  // 2 
+  // 3 
+  //
+  // set the cursor to column 0, line 1
+  // (note: line 1 is the second row, since counting begins with 0):
+  lcd.setCursor(0, 0);
+  lcd.print("POS: AZ ");
+  lcd.print(az_degrees, 0);
+  lcd.print(" EL ");
+  lcd.print(el_degrees, 0);
+  lcd.print("  ");
+
+  lcd.setCursor(0, 1);
+  lcd.print("TGT: AZ ");
+  lcd.print(az_target_degrees, 0);
+  lcd.print(" EL ");
+  lcd.print(el_target_degrees, 0);
+  lcd.print("  ");
+  
+
+  //lcd.setBacklight(HIGH);
+  //delay(500);
+  //lcd.setBacklight(LOW);
+  //delay(500);
+
+
 
 }
 
