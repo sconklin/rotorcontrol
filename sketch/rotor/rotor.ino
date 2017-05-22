@@ -12,8 +12,9 @@
 */
 #include <Wire.h>
 #include <LiquidTWI.h>
+#include <MemoryFree.h>
 
-#define serBufferMax 80
+#define serBufferMax 40
 #define JOG_DELAY 50
 #define IDLE_TIMEOUT_COUNTER 30000
 
@@ -28,7 +29,7 @@ int az_pos_pin = A0;
 int el_pos_pin = A1;
 
 // Serial input stuff
-int SERbfsz;
+int SERbfwp;
 int cmdsz;
 char *bufCpy;
 char SERbuffer[serBufferMax];
@@ -71,7 +72,25 @@ int sample_number = 0;
 
 int ii = 0;
 
+int hang = 0;
+
 LiquidTWI lcd(0);
+
+void haltText(String message1, String message2, String message3, String message4)
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(message1);
+  lcd.setCursor(0, 1);
+  lcd.print(message2);
+  lcd.setCursor(0, 2);
+  lcd.print(message3);
+  lcd.setCursor(0, 3);
+  lcd.print(message4);
+  while (true)
+    hang++;
+
+}
 
 int azMoving(void)
 {
@@ -117,7 +136,7 @@ void stopAz(void)
 {
   if (azMoving())
     {
-      //Serial.println("Stopping Az");
+      //Serial.println(F("Stopping Az"));
       digitalWrite(az_pwr_pin, LOW);
       delay(20); // Long enough to hit a zero cross
     }
@@ -128,7 +147,7 @@ void stopEl(void)
 {
   if (elMoving())
     {
-      //Serial.println("Stopping El");
+      //Serial.println(F("Stopping El"));
       digitalWrite(el_pwr_pin, LOW);
       delay(20); // Long enough to hit a zero cross
     }
@@ -138,7 +157,7 @@ void stopEl(void)
 void setAzLeft(void)
 {
   if (azLeft()) {
-    //Serial.println("moving left");
+    //Serial.println(F("moving left"));
     return;
   }
   stopAz();
@@ -148,7 +167,7 @@ void setAzLeft(void)
 void setAzRight(void)
 {
   if (azRight()) {
-    //Serial.println("moving right");
+    //Serial.println(F("moving right"));
     return;
   }
   stopAz();
@@ -158,7 +177,7 @@ void setAzRight(void)
 void setElDown(void)
 {
   if (elDown()) {
-    //Serial.println("moving down");
+    //Serial.println(F("moving down"));
     return;
   }
   stopEl();
@@ -168,7 +187,7 @@ void setElDown(void)
 void setElUp(void)
 {
   if (elUp()) {
-    //Serial.println("moving up");
+    //Serial.println(F("moving up"));
     return;
   }
   stopEl();
@@ -177,21 +196,21 @@ void setElUp(void)
 
 void sendAz(void)
 {
-  Serial.print("AZ");
+  Serial.print(F("AZ"));
   Serial.println(az_degrees, 1);
 }
 
 void sendEl(void)
 {
-  Serial.print("EL");
+  Serial.print(F("EL"));
   Serial.println(el_degrees, 1);
 }
 
 void sendAzEl(void)
 {
-  Serial.print("AZ");
+  Serial.print(F("AZ"));
   Serial.print(az_degrees, 1);
-  Serial.print(" EL");
+  Serial.print(F(" EL"));
   Serial.println(el_degrees, 1);
 }
 
@@ -221,7 +240,7 @@ void calibrate(void)
         Serial.println(val);
 	if (val == oldval) {
 	  // done
-	  Serial.println("az low end:");
+	  Serial.println(F("az low end:"));
 	  Serial.println(val);
 	  break;
 	} else {
@@ -241,7 +260,7 @@ void calibrate(void)
         Serial.println(val);
 	if (val == oldval) {
 	  // done
-	  Serial.println("az high end:");
+	  Serial.println(F("az high end:"));
 	  Serial.println(val);
 	  break;
 	} else {
@@ -253,10 +272,10 @@ void calibrate(void)
 
 void processCommand()
 {
-  lcd.setCursor(0, 3);
-  lcd.print("                    ");
-  lcd.setCursor(0, 3);
-  lcd.print(CMDbuffer);
+  //lcd.setCursor(0, 3);
+  //lcd.print(F("                    "));
+  //lcd.setCursor(0, 3);
+  //lcd.print(CMDbuffer);
   // now process it
   if (strncmp(CMDbuffer, "AZ", 2) == 0) {
     // AZ
@@ -315,6 +334,10 @@ void processCommand()
     delay(JOG_DELAY);
     stopEl();
     setElDown(); // turn off relay to prevent current draw
+    return;
+  }
+  else if (strncmp(CMDbuffer, "XXX", 3) == 0) {
+    // Ignore
     return;
   }
   else if (strncmp(CMDbuffer, "JD", 2) == 0) {
@@ -431,7 +454,7 @@ void processCommand()
       // out of range, ignore it
       return;
     }
-    Serial.print("AN");
+    Serial.print(F("AN"));
     Serial.print(ii);
     Serial.print(",");
     Serial.println(analogRead(ii+14));
@@ -443,34 +466,35 @@ void processCommand()
   }
   else if (strncmp(CMDbuffer, "VE", 2) == 0) {
     // Version
-    Serial.println("VE001");
+    Serial.println(F("VE001"));
     return;
   }
   else {
+    haltText("Bad Cmd",CMDbuffer, "", ""); 
     return;
   }
 }
 
 void handleSerial(int inbyte)
 {
+  char *s;
+  char *d;
   //
   // If there is a character available on the serial port, accumulate it into
   // a buffer. When completed by a newline, or carriage return, process it.
   //
   if (inbyte == '\n' || inbyte == '\r') {
-    SERbuffer[SERbfsz++] = 0;
-    cmdsz = SERbfsz - 1;
-    SERbfsz = 0;
-
-  lcd.setCursor(0, 2);
-  lcd.print("                    ");
-  lcd.setCursor(0, 2);
-  lcd.print(SERbuffer);
+    SERbuffer[SERbfwp++] = 0;
+    cmdsz = SERbfwp - 1;
+    SERbfwp = 0;
 
     // Assume ascii and make all letters uppercase
-    for (ii=0; ii < cmdsz; ii++)
-      if ((SERbuffer[ii] >= 97) && (SERbuffer[ii] <=122))
-	SERbuffer[ii]  &= ~(0x20);
+    s = &SERbuffer[0];
+    while (*s) {
+      if ((*s >= 97) && (*s <=122))
+	*s &= ~(0x20);
+      s++;
+    }
 
     // First check for the only 'command' that is longer than two characters.
     // It's a combination of az and el position requests, and must be responded
@@ -492,48 +516,43 @@ void handleSerial(int inbyte)
     // "AZ240.4 EL26.1 UP000 XXX DN000 XXX"
     // within a command line, there can be one or more commands, separated by spaces
     // Separate them on space boundaries, and process each
-    bufCpy = &SERbuffer[0];
-    while (*bufCpy != 0) {
-      ii = 0;
-      while (1) {
-	  if (*bufCpy == 0) {
-	    // end of serial input buffer
-	    CMDbuffer[ii++] = 0;
-	    break;
-	  } else if (*bufCpy == ' ') {
-	    // process what we've copied so far
-	    CMDbuffer[ii++] = 0;
-	    bufCpy++;
-	    break;
-	  } else {
-	    CMDbuffer[ii++] = *bufCpy++;
-	  }
+    s = &SERbuffer[0];
+    while (*s) {
+      d = &CMDbuffer[0];
+      // copy a string into cmd buffer until space or end
+      while (*s && (*s != ' ')) {
+	*d++ = *s++;
       }
+      // if it's a space, advance past it
+      if (*s == ' ')
+	s++;
 
+      *d++ = 0; // terminate the command buffer string, source points just past space or still at NULL
       cmdsz = strlen(CMDbuffer);
+
       // commands are exactly two characters long
       if (cmdsz < 2) {
 	//Serial.println("short");
 	return;
       }
-
+      /*
       if (strncmp(CMDbuffer, "CALIBRATE", 9) == 0) {
         calibrate();
         return;
       }
+      */
       processCommand();
     }
-  }
-  else {
+  } else {
     // accumulate the available character
-    if (SERbfsz < (serBufferMax-1))
-      SERbuffer[SERbfsz++] = inbyte;
+    if (SERbfwp < (serBufferMax-1))
+      SERbuffer[SERbfwp++] = inbyte;
     else {
       // buffer overrun, just clear buffer and start over
       //Serial.println("clear");
-      SERbfsz = 0;
+      SERbfwp = 0;
+      SERbuffer[SERbfwp] = 0;
     }
-    return;
   }
   return;
 }
@@ -556,7 +575,8 @@ void setup() {
   // Initialize the LCD display
   lcd.begin(20, 4);
   // Print a message to the LCD.
-  lcd.print("AI4QR");
+  //lcd.print(F("AI4QR"));
+  //lcd.autoscroll();
 
   // make some one-time floating point calcs
   az_degrees_per_count = 360.0/(float(az_high_end)-float(az_low_end));
@@ -643,26 +663,48 @@ void loop() {
   // set the cursor to column 0, line 1
   // (note: line 1 is the second row, since counting begins with 0):
   lcd.setCursor(0, 0);
-  lcd.print("POS: AZ ");
+  lcd.print(F("PA "));
   lcd.print(az_degrees, 0);
-  lcd.print(" EL ");
+  lcd.print(F(" E "));
   lcd.print(el_degrees, 0);
-  lcd.print("  ");
+  lcd.print(F("  "));
 
   lcd.setCursor(0, 1);
-  lcd.print("TGT: AZ ");
+  lcd.print(F("TA "));
   lcd.print(az_target_degrees, 0);
-  lcd.print(" EL ");
+  lcd.print(F(" E "));
   lcd.print(el_target_degrees, 0);
-  lcd.print("  ");
+  lcd.print(F("  "));
   
+  lcd.setCursor(0, 2);
+  lcd.print(F("PA "));
+  lcd.print(az_position);
+  lcd.print(F(" E "));
+  lcd.print(el_position);
+  lcd.print(F("  "));
 
-  //lcd.setBacklight(HIGH);
+  lcd.setCursor(0, 3);
+  lcd.print(F("TA "));
+  lcd.print(az_target);
+  lcd.print(F(" E "));
+  lcd.print(el_target);
+  lcd.print(F("  "));
+  
+  lcd.setCursor(18, 0);
+  if (az_commanded) {
+    lcd.print(F("1"));
+  } else {
+    lcd.print(F("0"));
+  }
+
+  lcd.setCursor(18, 1);
+  if (el_commanded) {
+    lcd.print(F("1"));
+  } else {
+    lcd.print(F("0"));
+  }
+
+
   //delay(500);
-  //lcd.setBacklight(LOW);
-  //delay(500);
-
-
-
 }
 
