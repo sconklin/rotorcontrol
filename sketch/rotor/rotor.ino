@@ -17,6 +17,7 @@
 #define serBufferMax 40
 #define JOG_DELAY 50
 #define IDLE_TIMEOUT_COUNTER 30000
+#define ZERO_CROSS_DELAY 9
 
 // Board pin connections
 int az_pwr_pin = 4;
@@ -52,6 +53,7 @@ int az_commanded = 0;
 int el_commanded = 0;
 int az_countdown = 0;
 int el_countdown = 0;
+int display_countdown = 0;
 
 // Position calibration variables
 // TODO move to eeprom storage
@@ -76,6 +78,26 @@ int hang = 0;
 
 LiquidTWI lcd(0);
 
+#define azMoving() (bitRead(PORTD,az_pwr_pin))
+#define elMoving() (bitRead(PORTD,el_pwr_pin))
+#define azMovingLeft() (!bitRead(PORTD,az_dir_pin))
+#define azMovingRight() (bitRead(PORTD,az_dir_pin))
+#define elMovingUp() (bitRead(PORTD,el_dir_pin))
+#define elMovingDown() (!bitRead(PORTD,el_dir_pin))
+
+#define setAzDirLeft() (digitalWrite(az_dir_pin, LOW))
+#define setAzDirRight() (digitalWrite(az_dir_pin, HIGH))
+#define setElDirDown() (digitalWrite(el_dir_pin, LOW))
+#define setElDirUp() (digitalWrite(el_dir_pin, HIGH))
+
+#define turnAzOn() (digitalWrite(az_pwr_pin, HIGH))
+#define turnAzOff() (digitalWrite(az_pwr_pin, LOW))
+#define turnElOn() (digitalWrite(el_pwr_pin, HIGH))
+#define turnElOff() ( digitalWrite(el_pwr_pin, LOW))
+
+#define degrees2Az(deg) (int(deg / az_degrees_per_count)+ az_low_end)
+#define degrees2El(deg) (int(deg / el_degrees_per_count)+ el_low_end)
+
 void haltText(String message1, String message2, String message3, String message4)
 {
   lcd.clear();
@@ -92,53 +114,13 @@ void haltText(String message1, String message2, String message3, String message4
 
 }
 
-int azMoving(void)
-{
-  return bitRead(PORTD,az_pwr_pin);
-}
-
-int elMoving(void)
-{
-  return bitRead(PORTD,el_pwr_pin);
-}
-
-int azLeft(void)
-{
-  return !bitRead(PORTD,az_dir_pin);
-}
-
-int azRight(void)
-{
-  return bitRead(PORTD,az_dir_pin);
-}
-
-int elUp(void)
-{
-  return bitRead(PORTD,el_dir_pin);
-}
-
-int elDown(void)
-{
-  return !bitRead(PORTD,el_dir_pin);
-}
-
-void startAz(void)
-{
-  digitalWrite(az_pwr_pin, HIGH);
-}
-
-void startEl(void)
-{
-  digitalWrite(el_pwr_pin, HIGH);
-}
-
 void stopAz(void)
 {
   if (azMoving())
     {
       //Serial.println(F("Stopping Az"));
-      digitalWrite(az_pwr_pin, LOW);
-      delay(20); // Long enough to hit a zero cross
+      turnAzOff();
+      delay(ZERO_CROSS_DELAY); // Long enough to hit a zero cross
     }
   return;
 }
@@ -148,50 +130,50 @@ void stopEl(void)
   if (elMoving())
     {
       //Serial.println(F("Stopping El"));
-      digitalWrite(el_pwr_pin, LOW);
-      delay(20); // Long enough to hit a zero cross
+      turnElOff();
+      delay(ZERO_CROSS_DELAY); // Long enough to hit a zero cross
     }
   return;
 }
 
 void setAzLeft(void)
 {
-  if (azLeft()) {
+  if (azMovingLeft()) {
     //Serial.println(F("moving left"));
     return;
   }
   stopAz();
-  digitalWrite(az_dir_pin, LOW);
+  setAzDirLeft();
 }
 
 void setAzRight(void)
 {
-  if (azRight()) {
+  if (azMovingRight()) {
     //Serial.println(F("moving right"));
     return;
   }
   stopAz();
-  digitalWrite(az_dir_pin, HIGH);
+  setAzDirRight();
 }
 
 void setElDown(void)
 {
-  if (elDown()) {
+  if (elMovingDown()) {
     //Serial.println(F("moving down"));
     return;
   }
   stopEl();
-  digitalWrite(el_dir_pin, LOW);
+  setElDirDown();
 }
 
 void setElUp(void)
 {
-  if (elUp()) {
+  if (elMovingUp()) {
     //Serial.println(F("moving up"));
     return;
   }
   stopEl();
-  digitalWrite(el_dir_pin, HIGH);
+  setElDirUp();
 }
 
 void sendAz(void)
@@ -210,28 +192,19 @@ void sendAzEl(void)
 {
   Serial.print(F("AZ"));
   Serial.print(az_degrees, 1);
-  Serial.print(F(" EL"));
-  Serial.println(el_degrees, 1);
-}
-
-int degrees2Az(float deg)
-{
-  return (int(deg / az_degrees_per_count)+ az_low_end);
-}
-
-int degrees2El(float deg)
-{
-  return (int(deg / el_degrees_per_count)+ el_low_end);
+  Serial.print(" ");
+  sendEl();
 }
 
 void calibrate(void)
 {
   int val, oldval;
+  return;
   stopAz();
   stopEl();
   // move left until we no longer go any further
   setAzLeft();
-  startAz();
+  turnAzOn();
   oldval = 0;
   while (1)
     {
@@ -251,7 +224,7 @@ void calibrate(void)
   
   // move right until we no longer go any further
   setAzRight();
-  startAz();
+  turnAzOn();
   oldval = 0;
   while (1)
     {
@@ -284,17 +257,28 @@ void processCommand()
       sendAz();
     } else {
       az_target_degrees = atof(&CMDbuffer[2]);
+      // See if we're close enough
+      
+
+      //if((az_target_degrees < 0.0) || (az_target_degrees > 360.0))
+      //   haltText("azRange", "", "", "");
+
       az_target = degrees2Az(az_target_degrees);
       // check range
       if ((az_target >= az_low_end) && (az_target <= az_high_end))
 	{
+	  lcd.setCursor(0, 3);
+	  lcd.print(F("          "));
+	  lcd.setCursor(0, 3);
+	  lcd.print("AC: ");
+	  lcd.print(az_target_degrees, 1);
 	  if (az_position < az_target) {
 	    setAzRight();
-	    startAz();
+	    turnAzOn();
 	    az_commanded = 1;
 	  } else if (az_position > az_target) {
 	    setAzLeft();
-	    startAz();
+	    turnAzOn();
 	    az_commanded = 1;
 	  }
 	  //sendAz();
@@ -309,17 +293,25 @@ void processCommand()
       sendEl();
     } else {
       el_target_degrees = atof(&CMDbuffer[2]);
+      if((el_target_degrees < 0.0) || (el_target_degrees > 180.0)) {
+	haltText("elRange", "", "", "");
+      }
       el_target = degrees2El(el_target_degrees);
       // check range
       if ((el_target >= el_low_end) && (el_target <= el_high_end))
 	{
+	  lcd.setCursor(10, 3);
+	  lcd.print(F("          "));
+	  lcd.setCursor(10, 3);
+	  lcd.print("EC: ");
+	  lcd.print(el_target_degrees, 1);
 	  if (el_position < el_target) {
 	    setElUp();
-	    startEl();
+	    turnElOn();
 	    el_commanded = 1;
 	  } else if (el_position > el_target) {
 	    setElDown();
-	    startEl();
+	    turnElOn();
 	    el_commanded = 1;
 	  }
 	  //sendEl();
@@ -330,7 +322,7 @@ void processCommand()
   else if (strncmp(CMDbuffer, "JU", 2) == 0) {
     // Jog up
     setElUp();
-    startEl();
+    turnElOn();
     delay(JOG_DELAY);
     stopEl();
     setElDown(); // turn off relay to prevent current draw
@@ -343,7 +335,7 @@ void processCommand()
   else if (strncmp(CMDbuffer, "JD", 2) == 0) {
     // Jog down
     setElDown();
-    startEl();
+    turnElOn();
     delay(JOG_DELAY);
     stopEl();
     return;
@@ -351,7 +343,7 @@ void processCommand()
   else if (strncmp(CMDbuffer, "JL", 2) == 0) {
     // Jog left
     setAzLeft();
-    startAz();
+    turnAzOn();
     delay(JOG_DELAY);
     stopAz();
     return;
@@ -359,7 +351,7 @@ void processCommand()
   else if (strncmp(CMDbuffer, "JR", 2) == 0) {
     // Jog right
     setAzRight();
-    startAz();
+    turnAzOn();
     delay(JOG_DELAY);
     stopAz();
     setAzLeft(); // turn off relay to prevent current draw
@@ -392,28 +384,28 @@ void processCommand()
   else if (strncmp(CMDbuffer, "ML", 2) == 0) {
     // Move Left
     setAzLeft();
-    startAz();
+    turnAzOn();
     az_commanded = 0;
     return;
   }
   else if (strncmp(CMDbuffer, "MR", 2) == 0) {
     // Move Right
     setAzRight();
-    startAz();
+    turnAzOn();
     az_commanded = 0;
     return;
   }
   else if (strncmp(CMDbuffer, "MU", 2) == 0) {
     // Move Up
     setElUp();
-    startEl();
+    turnElOn();
     el_commanded = 0;
     return;
   }
   else if (strncmp(CMDbuffer, "MD", 2) == 0) {
     // Move Down
     setElDown();
-    startEl();
+    turnElOn();
     el_commanded = 0;
     return;
   }
@@ -572,12 +564,12 @@ void setup() {
   }
   Serial.begin(9600);
 
+  display_countdown = 5000;
+
   // Initialize the LCD display
   lcd.begin(20, 4);
   // Print a message to the LCD.
-  //lcd.print(F("AI4QR"));
-  //lcd.autoscroll();
-
+  lcd.print(F("AI4QR SatTracker"));
   // make some one-time floating point calcs
   az_degrees_per_count = 360.0/(float(az_high_end)-float(az_low_end));
   el_degrees_per_count = 180.0/(float(el_high_end)-float(el_low_end));
@@ -585,6 +577,7 @@ void setup() {
 
 void loop() {
   // read the positions, and average
+  /*
   az_pos[sample_number] = analogRead(az_pos_pin);
   el_pos[sample_number] = analogRead(el_pos_pin);
   sample_number++;
@@ -598,8 +591,11 @@ void loop() {
   // NOTE, this truncates (rounds down)
   az_position = az_position / 10;
   el_position = el_position / 10;
+  */
+  az_position = analogRead(az_pos_pin);
+  el_position = analogRead(el_pos_pin);
 
-  // Check for sensor failure
+// Check for sensor failure
 //  if ((az_position < low_limit) || (az_position > high_limit))
 //    stopAz();
 //  if ((el_position < low_limit) || (el_position > high_limit))
@@ -624,10 +620,10 @@ void loop() {
 
   if (az_commanded) {
     az_countdown = IDLE_TIMEOUT_COUNTER;
-    if (azLeft() && (az_position <= az_target)) {
+    if (azMovingLeft() && (az_position <= az_target)) {
       stopAz();
       az_commanded = 0;
-    } else if  (azRight() && (az_position >= az_target)) {
+    } else if  (azMovingRight() && (az_position >= az_target)) {
       stopAz();
       az_commanded = 0;
     }
@@ -635,76 +631,45 @@ void loop() {
 
   if (el_commanded) {
     el_countdown = IDLE_TIMEOUT_COUNTER;
-    if (elDown() && (el_position <= el_target)) {
+    if (elMovingDown() && (el_position <= el_target)) {
       stopEl();
       el_commanded = 0;
-    } else if  (elUp() && (el_position >= el_target)) {
+    } else if  (elMovingUp() && (el_position >= el_target)) {
       stopEl();
       el_commanded = 0;
     }
   }
 
+  if (display_countdown-- == 0) {
+    display_countdown = 5000;
+    // Output info to LCD
+    lcd.setCursor(0, 2);
+    lcd.print(F("                    "));
+    lcd.setCursor(0, 2);
+    lcd.print("AZ: ");
+    lcd.print(az_degrees, 1);
+    lcd.setCursor(10, 2);
+    lcd.print("EL: ");
+    lcd.print(el_degrees, 1);
+    lcd.setCursor(0, 3);
+    lcd.print(F("                    "));
+    if (az_commanded) {
+      lcd.setCursor(0, 3);
+      lcd.print("AC: ");
+      lcd.print(az_target_degrees, 1);
+    }
+    if (el_commanded) {
+      lcd.setCursor(10, 3);
+      lcd.print("EC: ");
+      lcd.print(el_target_degrees, 1);
+    }
+  }
+
+
   // Check for serial data
-  while(Serial.available()) {
+  if(Serial.available()) {
     handleSerial(Serial.read());
   }
 
-  // Print debug output to LCD
-  // There are four lines.
-  // Top two reserved for operational info
-  // Bottom two for debugging
-  //
-  //   0123456789001234567890
-  // 0 TGT: AZ:nnn.n EL nnn.n
-  // 1 POS: AZ:nnn.n EL nnn.n
-  // 2 
-  // 3 
-  //
-  // set the cursor to column 0, line 1
-  // (note: line 1 is the second row, since counting begins with 0):
-  lcd.setCursor(0, 0);
-  lcd.print(F("PA "));
-  lcd.print(az_degrees, 0);
-  lcd.print(F(" E "));
-  lcd.print(el_degrees, 0);
-  lcd.print(F("  "));
-
-  lcd.setCursor(0, 1);
-  lcd.print(F("TA "));
-  lcd.print(az_target_degrees, 0);
-  lcd.print(F(" E "));
-  lcd.print(el_target_degrees, 0);
-  lcd.print(F("  "));
-  
-  lcd.setCursor(0, 2);
-  lcd.print(F("PA "));
-  lcd.print(az_position);
-  lcd.print(F(" E "));
-  lcd.print(el_position);
-  lcd.print(F("  "));
-
-  lcd.setCursor(0, 3);
-  lcd.print(F("TA "));
-  lcd.print(az_target);
-  lcd.print(F(" E "));
-  lcd.print(el_target);
-  lcd.print(F("  "));
-  
-  lcd.setCursor(18, 0);
-  if (az_commanded) {
-    lcd.print(F("1"));
-  } else {
-    lcd.print(F("0"));
-  }
-
-  lcd.setCursor(18, 1);
-  if (el_commanded) {
-    lcd.print(F("1"));
-  } else {
-    lcd.print(F("0"));
-  }
-
-
-  //delay(500);
 }
 
